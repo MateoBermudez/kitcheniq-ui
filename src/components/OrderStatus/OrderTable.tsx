@@ -39,12 +39,14 @@ const OrderTable = ({ searchTerm, onToast }) => {
 
     useEffect(() => {
         window.updateOrderTable = (newOrder) => {
-            const newTimes = {
-                ...localOrderTimes,
-                [newOrder.id]: newOrder.horasolicitud
-            };
-            setLocalOrderTimes(newTimes);
-            localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
+            setLocalOrderTimes(currentTimes => {
+                const newTimes = {
+                    ...currentTimes,
+                    [newOrder.id]: newOrder.horasolicitud
+                };
+                localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
+                return newTimes;
+            });
 
             loadOrders();
         };
@@ -52,7 +54,7 @@ const OrderTable = ({ searchTerm, onToast }) => {
         return () => {
             delete window.updateOrderTable;
         };
-    }, [localOrderTimes]);
+    }, []);
 
     const mapOrderData = useCallback((backendOrder) => {
         const safeOrder = backendOrder || {};
@@ -176,7 +178,6 @@ const OrderTable = ({ searchTerm, onToast }) => {
             setOrders(mappedOrders);
 
         } catch (err) {
-
             let errorMessage = 'Error al cargar los pedidos';
 
             if (err.name === 'TypeError' && err.message.includes('fetch')) {
@@ -200,6 +201,14 @@ const OrderTable = ({ searchTerm, onToast }) => {
 
     useEffect(() => {
         loadOrders();
+    }, []);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            loadOrders();
+        }, 30000); // 30 segundos
+
+        return () => clearInterval(intervalId);
     }, [loadOrders]);
 
     const handleRefresh = async () => {
@@ -550,7 +559,6 @@ const OrderTable = ({ searchTerm, onToast }) => {
                 )}
             </div>
 
-            {/* Modal de confirmación para eliminar */}
             <Modal show={showDeleteModal} onHide={cancelDelete} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>

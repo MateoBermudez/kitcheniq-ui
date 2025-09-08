@@ -14,25 +14,25 @@ import {
     FileEarmarkBarGraph,
     PersonCircle
 } from 'react-bootstrap-icons';
-import perfilImage from '../../../../kitcheniq-ui-refactor/src/assets/profilepic.jpg';
+import perfilImage from '../../assets/profilepic.jpg';
 
 const Sidebar = ({ activeSection, onSectionChange }) => {
     const [showImageModal, setShowImageModal] = useState(false);
 
     const controlItems = [
         { key: 'Home', icon: <House size={18} />, label: 'Home' },
-        { key: 'pedidos', icon: <ClipboardCheck size={18} />, label: 'Pedidos' },
-        { key: 'Inventario', icon: <Box size={18} />, label: 'Inventario' },
-        { key: 'Carta', icon: <Journal size={18} />, label: 'Carta' },
-        { key: 'Proveedores', icon: <Truck size={18} />, label: 'Proveedores' },
-        { key: 'Personal', icon: <People size={18} />, label: 'Personal' },
+        { key: 'pedidos', icon: <ClipboardCheck size={18} />, label: 'Orders' },
+        { key: 'Inventario', icon: <Box size={18} />, label: 'Inventory' },
+        { key: 'Carta', icon: <Journal size={18} />, label: 'Menu' },
+        { key: 'Proveedores', icon: <Truck size={18} />, label: 'Suppliers' },
+        { key: 'Personal', icon: <People size={18} />, label: 'Staff' },
     ];
 
     const finanzasItems = [
-        { key: 'Caja', icon: <CashCoin size={18} />, label: 'Caja' },
-        { key: 'Ventas', icon: <BarChart size={18} />, label: 'Ventas' },
-        { key: 'Gastos', icon: <Receipt size={18} />, label: 'Gastos' },
-        { key: 'Reportes', icon: <FileEarmarkBarGraph size={18} />, label: 'Reportes' },
+        { key: 'Caja', icon: <CashCoin size={18} />, label: 'Cash Register' },
+        { key: 'Ventas', icon: <BarChart size={18} />, label: 'Sales' },
+        { key: 'Gastos', icon: <Receipt size={18} />, label: 'Expenses' },
+        { key: 'Reportes', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
     ];
 
     const renderNavItems = (items) => {
@@ -71,13 +71,13 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
                          onClick={() => setShowImageModal(true)}>
                         <img
                             src={perfilImage}
-                            alt="Perfil"
+                            alt="Profile"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                     </div>
                     <div>
                         <small className="text-muted">DANIELOIDE2</small>
-                        <div className="fw-bold">Administrador</div>
+                        <div className="fw-bold">Administrator</div>
                     </div>
                 </div>
             </div>
@@ -91,13 +91,13 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
                 <Modal.Header closeButton>
                     <Modal.Title>
                         <PersonCircle size={24} className="me-2 text-dark" />
-                        FOTO DE PERFIL
+                        PROFILE PICTURE
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body className="text-center p-0">
                     <img
                         src={perfilImage}
-                        alt="Perfil ampliado"
+                        alt="Enlarged profile"
                         style={{ width: '100%', height: 'auto', maxHeight: '70vh' }}
                     />
                 </Modal.Body>
@@ -107,7 +107,7 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
                 <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2">Control</div>
                 {renderNavItems(controlItems)}
 
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finanzas</div>
+                <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
                 {renderNavItems(finanzasItems)}
             </Nav>
         </div>
