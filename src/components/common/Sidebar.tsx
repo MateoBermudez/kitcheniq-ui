@@ -1,5 +1,4 @@
-import React from 'react';
-import { useState } from 'react';
+import {type JSX, useState} from 'react';
 import { Nav, Modal } from 'react-bootstrap';
 import {
     House,
@@ -16,10 +15,22 @@ import {
 } from 'react-bootstrap-icons';
 import perfilImage from '../../../../kitcheniq-ui-refactor/src/assets/profilepic.jpg';
 
-const Sidebar = ({ activeSection, onSectionChange }) => {
+type SidebarProps = {
+    activeSection: string;
+    onSectionChange: (section: string) => void;
+};
+
+type NavItem = {
+    key: string;
+    icon: JSX.Element;
+    label: string;
+    active?: boolean;
+};
+
+const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
 
-    const controlItems = [
+    const controlItems: NavItem[] = [
         { key: 'Home', icon: <House size={18} />, label: 'Home' },
         { key: 'pedidos', icon: <ClipboardCheck size={18} />, label: 'Pedidos' },
         { key: 'Inventario', icon: <Box size={18} />, label: 'Inventario' },
@@ -28,15 +39,15 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
         { key: 'Personal', icon: <People size={18} />, label: 'Personal' },
     ];
 
-    const finanzasItems = [
+    const finanzasItems: NavItem[] = [
         { key: 'Caja', icon: <CashCoin size={18} />, label: 'Caja' },
         { key: 'Ventas', icon: <BarChart size={18} />, label: 'Ventas' },
         { key: 'Gastos', icon: <Receipt size={18} />, label: 'Gastos' },
         { key: 'Reportes', icon: <FileEarmarkBarGraph size={18} />, label: 'Reportes' },
     ];
 
-    const renderNavItems = (items) => {
-        return items.map((item) => (
+    const renderNavItems = (items: NavItem[]) => {
+        return items.map((item: NavItem) => (
             <Nav.Link
                 key={item.key}
                 className={`d-flex align-items-center py-2 px-3 text-dark ${
@@ -86,7 +97,7 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
                 show={showImageModal}
                 onHide={() => setShowImageModal(false)}
                 centered
-                size="md"
+                size="lg"
             >
                 <Modal.Header closeButton>
                     <Modal.Title>

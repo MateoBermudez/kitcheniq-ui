@@ -2,8 +2,10 @@ import { useState } from 'react';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
 import OrderStatus from './components/OrderStatus/OrderStatus';
-import ToastContainer from './components/common/ToastContainer';
-import {type ToastContextType, ToastProvider, useToast} from './context/ToastContext';
+import ToastContainer, {type ToastType} from './components/common/ToastContainer';
+import {type ToastContextType} from './context/toastContext.ts';
+import {ToastProvider} from "./context/ToastContext.tsx";
+import {useToast} from "./components/hooks/useToast.ts";
 import './App.scss';
 
 
@@ -18,6 +20,15 @@ function AppContent() {
             case 'warning': return showWarning(message);
             default: return showInfo(message);
         }
+    };
+
+    const mappedToasts = toasts.map(t => ({
+        ...t,
+        type: t.type as ToastType
+    }));
+
+    const handleRemoveToast = (id: string | number) => {
+        removeToast(typeof id === 'string' ? Number(id) : id);
     };
 
     return (
@@ -44,8 +55,8 @@ function AppContent() {
                 </div>
 
                 <ToastContainer
-                    toasts={toasts}
-                    onClose={removeToast}
+                    toasts={mappedToasts}
+                    onClose={handleRemoveToast}
                 />
             </div>
         </div>
