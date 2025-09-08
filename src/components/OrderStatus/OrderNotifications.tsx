@@ -3,78 +3,120 @@ import { Alert } from 'react-bootstrap';
 import { BellSlash, Clock, InfoCircle, CheckCircle, ExclamationTriangle } from 'react-bootstrap-icons';
 import { getAllOrders } from '../../service/api';
 
-const OrderNotifications = () => {
-    const [notifications, setNotifications] = useState([]);
-    const lastOrderStatesRef = useRef({});
-    const checkIntervalRef = useRef(null);
+export type NotificationType = 'success' | 'warning' | 'danger' | 'info';
 
-    const addNotification = useCallback((message, type = 'info', title = null, autoRemove = true) => {
-        console.log('Añadiendo notificación:', message, type, title);
+export interface OrderNotification {
+    id: string;
+    code: string;
+    message: string;
+    type: NotificationType;
+    timestamp: Date;
+}
 
-        const newNotification = {
-            id: Date.now().toString(),
-            code: title || (type === 'success' ? 'Éxito' :
-                type === 'warning' ? 'Advertencia' :
-                    type === 'danger' ? 'Error' : 'Información'),
-            message,
-            type,
-            timestamp: new Date()
-        };
+interface LastOrderState {
+    status: string;
+    timestamp: number;
+    notified: {
+        pendingTooLong: boolean;
+        readyTooLong: boolean;
+        cancelledNotified: boolean;
+        highPriority: boolean;
+    };
+}
 
-        setNotifications(prev => [newNotification, ...prev]);
+interface Order {
+    id: number;
+    details: string;
+    price: number;
+    bill: string;
+    status: string;
+    orderDate: string;
+    items: string[];
+}
 
-        if (autoRemove) {
-            setTimeout(() => {
-                setNotifications(prev => prev.filter(notif => notif.id !== newNotification.id));
-            }, 120000);
+const OrderNotifications: React.FC = () => {
+    const [notifications, setNotifications] = useState<OrderNotification[]>([]);
+    const lastOrderStatesRef = useRef<Record<string, LastOrderState | number>>({});
+    const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const addNotification = useCallback(
+        (message: string, type: NotificationType = 'info', title: string | null = null, autoRemove: boolean = true): string => {
+            console.log('Adding notification:', message, type, title);
+
+            const newNotification: OrderNotification = {
+                id: Date.now().toString(),
+                code: title || (type === 'success' ? 'Success' :
+                    type === 'warning' ? 'Warning' :
+                        type === 'danger' ? 'Error' : 'Information'),
+                message,
+                type,
+                timestamp: new Date()
+            };
+
+            setNotifications(prev => [newNotification, ...prev]);
+
+            if (autoRemove) {
+                setTimeout(() => {
+                    setNotifications(prev => prev.filter(notif => notif.id !== newNotification.id));
+                }, 120000);
+            }
+
+            return newNotification.id;
+        },
+        []
+    );
+
+    const extractTableNumber = (order: Order): string | number | null => {
+        if (order.details && order.details.includes('Mesa')) {
+            const match = order.details.match(/Mesa\s+(\d+)/i);
+            return match ? match[1] : null;
         }
+        return null;
+    };
 
-        return newNotification.id;
-    }, []);
-
-    const checkOrdersStatus = useCallback(async () => {
+    const checkOrdersStatus = useCallback(async (): Promise<void> => {
         try {
-            console.log('Verificando estado de pedidos...');
+            console.log('Checking order status...');
             const orders = await getAllOrders();
-
             if (!orders || !Array.isArray(orders) || orders.length === 0) {
-                console.log('No se encontraron pedidos para verificar');
+                console.log('No orders found to check');
                 return;
             }
 
-            console.log(`Verificando ${orders.length} pedidos`);
+            console.log(`Checking ${orders.length} orders`);
             const currentTime = new Date();
+            const currentTimestamp = currentTime.getTime();
 
             let pendingCount = 0;
             let readyCount = 0;
             let deliveredCount = 0;
 
-            let ordersByTable = {};
+            const ordersByTable: { [key: string]: number } = {};
 
             orders.forEach(order => {
                 const orderId = order.id || order.codigo || order._id;
                 if (!orderId) return;
 
                 const orderStatus = (order.status || order.estado || '').toUpperCase();
-                const lastKnownState = lastOrderStatesRef.current[orderId];
+                const lastKnownState = lastOrderStatesRef.current[orderId] as LastOrderState | undefined;
 
-                if (orderStatus === 'PENDING' || orderStatus === 'PENDIENTE') {
+                if (orderStatus === 'PENDING') {
                     pendingCount++;
-                } else if (orderStatus === 'READY' || orderStatus === 'LISTO') {
+                } else if (orderStatus === 'READY') {
                     readyCount++;
-                } else if (orderStatus === 'DELIVERED' || orderStatus === 'ENTREGADO') {
+                } else if (orderStatus === 'DELIVERED') {
                     deliveredCount++;
                 }
 
                 const tableNumber = extractTableNumber(order);
-                if (tableNumber && orderStatus !== 'DELIVERED' && orderStatus !== 'ENTREGADO') {
+                if (tableNumber && orderStatus !== 'DELIVERED') {
                     ordersByTable[tableNumber] = (ordersByTable[tableNumber] || 0) + 1;
                 }
 
                 if (!lastKnownState) {
                     lastOrderStatesRef.current[orderId] = {
                         status: orderStatus,
-                        timestamp: currentTime,
+                        timestamp: currentTimestamp,
                         notified: {
                             pendingTooLong: false,
                             readyTooLong: false,
@@ -85,18 +127,18 @@ const OrderNotifications = () => {
                     return;
                 }
 
-                if (orderStatus === 'READY' || orderStatus === 'LISTO') {
-                    if (lastKnownState.status !== 'READY' && lastKnownState.status !== 'LISTO') {
+                if (orderStatus === 'READY') {
+                    if (lastKnownState.status !== 'READY') {
                         addNotification(
-                            `ORD-${orderId} está lista para ser entregada.`,
+                            `ORD-${orderId} is ready to be delivered.`,
                             'success',
-                            'Pedido Listo'
+                            'Order Ready'
                         );
 
                         lastOrderStatesRef.current[orderId] = {
                             ...lastKnownState,
                             status: orderStatus,
-                            timestamp: currentTime,
+                            timestamp: currentTimestamp,
                             notified: {
                                 ...lastKnownState.notified,
                                 pendingTooLong: false,
@@ -106,12 +148,12 @@ const OrderNotifications = () => {
                     }
                 }
 
-                if (orderStatus === 'CANCELLED' || orderStatus === 'CANCELADO') {
+                if (orderStatus === 'CANCELLED') {
                     if (!lastKnownState.notified?.cancelledNotified) {
                         addNotification(
-                            `ORD-${orderId} ha sido cancelada.`,
+                            `ORD-${orderId} has been cancelled.`,
                             'danger',
-                            'Pedido Cancelado'
+                            'Order Cancelled'
                         );
 
                         lastOrderStatesRef.current[orderId] = {
@@ -125,14 +167,14 @@ const OrderNotifications = () => {
                     }
                 }
 
-                if (orderStatus === 'PENDING' || orderStatus === 'PENDIENTE') {
-                    const timeDiff = (currentTime - new Date(lastKnownState.timestamp)) / 600000; // en minutos
+                if (orderStatus === 'PENDING') {
+                    const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // in minutes
 
                     if (timeDiff >= 15 && !lastKnownState.notified?.pendingTooLong) {
                         addNotification(
-                            `ORD-${orderId} lleva más de 15 minutos en estado pendiente.`,
+                            `ORD-${orderId} has been pending for over 15 minutes.`,
                             'warning',
-                            'Pedido Demorado'
+                            'Order Delayed'
                         );
 
                         lastOrderStatesRef.current[orderId] = {
@@ -146,9 +188,9 @@ const OrderNotifications = () => {
 
                     if (timeDiff >= 30 && !lastKnownState.notified?.highPriority) {
                         addNotification(
-                            `¡URGENTE! ORD-${orderId} lleva más de 30 minutos pendiente.`,
+                            `URGENT! ORD-${orderId} has been pending for over 30 minutes.`,
                             'danger',
-                            'Pedido Urgente'
+                            'Urgent Order'
                         );
 
                         lastOrderStatesRef.current[orderId] = {
@@ -161,14 +203,14 @@ const OrderNotifications = () => {
                     }
                 }
 
-                if (orderStatus === 'READY' || orderStatus === 'LISTO') {
-                    const timeDiff = (currentTime - new Date(lastKnownState.timestamp)) / 60000; // en minutos
+                if (orderStatus === 'READY') {
+                    const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // in minutes
 
                     if (timeDiff >= 15 && !lastKnownState.notified?.readyTooLong) {
                         addNotification(
-                            `ORD-${orderId} lleva más de 15 minutos listo sin ser entregado.`,
+                            `ORD-${orderId} has been ready for over 15 minutes without being delivered.`,
                             'warning',
-                            'Entrega Pendiente'
+                            'Pending Delivery'
                         );
 
                         lastOrderStatesRef.current[orderId] = {
@@ -184,7 +226,7 @@ const OrderNotifications = () => {
                 if (orderStatus !== lastKnownState.status) {
                     lastOrderStatesRef.current[orderId] = {
                         status: orderStatus,
-                        timestamp: currentTime,
+                        timestamp: currentTimestamp,
                         notified: {
                             pendingTooLong: false,
                             readyTooLong: false,
@@ -195,50 +237,46 @@ const OrderNotifications = () => {
                 }
             });
 
-            const lastSummary = lastOrderStatesRef.current['_lastSummary'] || 0;
-            if ((currentTime - lastSummary) >= 30 * 60 * 1000) { // 30 minutos
+            const lastSummary = typeof lastOrderStatesRef.current['_lastSummary'] === 'number' ? lastOrderStatesRef.current['_lastSummary'] as number : 0;
+            if ((currentTimestamp - lastSummary) >= 30 * 60 * 1000) { // 30 minutes
                 if (pendingCount > 0 || readyCount > 0) {
                     addNotification(
-                        `Resumen: ${pendingCount} pedidos pendientes, ${readyCount} pedidos listos, ${deliveredCount} entregados hoy.`,
+                        `Summary: ${pendingCount} pending orders, ${readyCount} ready orders, ${deliveredCount} delivered today.`,
                         'info',
-                        'Resumen'
+                        'Summary'
                     );
-                    lastOrderStatesRef.current['_lastSummary'] = currentTime;
+                    lastOrderStatesRef.current['_lastSummary'] = currentTimestamp;
                 }
             }
 
-            Object.entries(ordersByTable).forEach(([mesa, cantidad]) => {
+            Object.entries(ordersByTable).forEach(([mesa, quantity]: [string, number]) => {
                 const mesaKey = `mesa_${mesa}`;
-                const lastMesaNotification = lastOrderStatesRef.current[mesaKey]?.timestamp || 0;
+                const lastMesaNotification = typeof lastOrderStatesRef.current[mesaKey] === 'number' ? lastOrderStatesRef.current[mesaKey] as number : 0;
 
-                if (cantidad > 1 && (currentTime - lastMesaNotification) >= 15 * 60 * 1000) {
+                if ((quantity > 1) && (currentTimestamp - lastMesaNotification) >= 15 * 60 * 1000) {
                     addNotification(
-                        `La mesa ${mesa} tiene ${cantidad} pedidos activos.`,
+                        `Table ${mesa} has ${quantity} active orders.`,
                         'info',
-                        'Mesa Activa'
+                        'Active Table'
                     );
 
-                    lastOrderStatesRef.current[mesaKey] = {
-                        timestamp: currentTime
-                    };
+                    lastOrderStatesRef.current[mesaKey] = currentTimestamp;
                 }
             });
 
         } catch (error) {
-            console.error('Error al verificar el estado de los pedidos:', error);
+            console.error('Error checking order status:', error);
         }
     }, [addNotification]);
 
-    const extractTableNumber = (order) => {
-        if (order.details && typeof order.details === 'string' && order.details.includes('Mesa')) {
-            const match = order.details.match(/Mesa\s+(\d+)/i);
-            return match ? match[1] : null;
-        }
-        return order.tableNumber || order.mesa || null;
-    };
-
     useEffect(() => {
-        checkOrdersStatus();
+        (async () => {
+            try {
+                await checkOrdersStatus();
+            } catch (error) {
+                console.error('Check Order Status Error:', error);
+            }
+        })();
 
         checkIntervalRef.current = setInterval(checkOrdersStatus, 600000);
 
@@ -249,11 +287,11 @@ const OrderNotifications = () => {
         };
     }, [checkOrdersStatus]);
 
-    const removeNotification = (id) => {
+    const removeNotification = (id: string): void => {
         setNotifications(prev => prev.filter(notif => notif.id !== id));
     };
 
-    const getNotificationIcon = (type) => {
+    const getNotificationIcon = (type: NotificationType) => {
         switch (type) {
             case 'success':
                 return <CheckCircle className="me-2" />;
@@ -297,7 +335,7 @@ const OrderNotifications = () => {
                     <div className="mb-2">
                         <BellSlash size={24} />
                     </div>
-                    <small>No hay notificaciones</small>
+                    <small>No notifications</small>
                 </div>
             )}
         </div>

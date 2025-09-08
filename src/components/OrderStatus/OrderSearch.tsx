@@ -3,53 +3,66 @@ import { Form, Button, InputGroup, Row, Col, Card, Spinner, Alert } from 'react-
 import { Search, Clock, Person, CurrencyDollar } from 'react-bootstrap-icons';
 import { getOrderById, getOrdersByStatus, getAllOrders } from '../../service/api';
 
-const OrderSearch = ({ onSearch }) => {
-    const [searchForm, setSearchForm] = useState({
+interface Order {
+    id: number;
+    codigo?: string;
+    estado?: string;
+    details?: string;
+    price?: number;
+    bill?: string;
+    status?: string;
+    orderDate?: string;
+    items?: string[];
+}
+
+interface OrderSearchProps {
+    onSearch?: (results: Order[]) => void;
+}
+
+const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
+    const [searchForm, setSearchForm] = useState<{ codigo: string; estado: string }>({
         codigo: '',
         estado: ''
     });
-    const [searchResults, setSearchResults] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [hasSearched, setHasSearched] = useState(false);
+    const [searchResults, setSearchResults] = useState<Order[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string>('');
+    const [hasSearched, setHasSearched] = useState<boolean>(false);
 
-    const handleInputChange = (field, value) => {
+    const handleInputChange = (field: string, value: string) => {
         setSearchForm(prev => ({
             ...prev,
             [field]: value
         }));
     };
 
-    const extractCustomerName = (details) => {
-        if (!details) return 'Cliente no especificado';
-
+    const extractCustomerName = (details: string | undefined): string => {
+        if (!details) return 'Customer not specified';
         const match = details.match(/Nombre Cliente:\s*([^\n]+)/);
-        return match ? match[1].trim() : 'Cliente no especificado';
+        return match ? match[1].trim() : 'Customer not specified';
     };
 
-    const extractTableNumber = (details) => {
+    const extractTableNumber = (details: string | undefined): string => {
         if (!details) return '';
-
         const match = details.match(/Mesa\s*(\d+)/);
-        return match ? `Mesa ${match[1]}` : '';
+        return match ? `Table ${match[1]}` : '';
     };
 
-    const formatOrderDate = (dateString) => {
+    const formatOrderDate = (dateString: string | undefined): string => {
         if (!dateString) return '';
-
         try {
             const date = new Date(dateString);
-            return date.toLocaleDateString('es-ES', {
+            return date.toLocaleDateString('en-US', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
-        } catch (error) {
+        } catch {
             return dateString;
         }
     };
 
-    const getStatusBadgeColor = (status) => {
+    const getStatusBadgeColor = (status: string | undefined): string => {
         switch (status?.toUpperCase()) {
             case 'PENDING':
                 return 'warning';
@@ -67,78 +80,60 @@ const OrderSearch = ({ onSearch }) => {
         }
     };
 
-    const translateStatus = (status) => {
+    const translateStatus = (status: string | undefined): string => {
         switch (status?.toUpperCase()) {
             case 'PENDING':
-                return 'Pendiente';
+                return 'Pending';
             case 'READY':
-                return 'Listo';
+                return 'Ready';
             case 'DELIVERED':
-                return 'Entregado';
+                return 'Delivered';
             case 'CANCELLED':
-                return 'Cancelado';
+                return 'Cancelled';
             default:
-                return status || 'Desconocido';
+                return status || 'Unknown';
         }
     };
 
-    const performSearch = useCallback(async () => {
+    const performSearch = useCallback(async (): Promise<void> => {
         setLoading(true);
         setError('');
         setHasSearched(true);
-
         try {
-            let results = [];
-
+            let results: Order[] = [];
             if (searchForm.codigo.trim()) {
                 try {
-                    const order = await getOrderById(parseInt(searchForm.codigo));
+                    const response = await getOrderById(parseInt(searchForm.codigo));
+                    const order: Order = response.data;
                     results = [order];
                 } catch (err) {
-                    if (err.response?.status === 404) {
+                    if (err && typeof err === 'object' && 'response' in err && (err as { response?: { status?: number } }).response?.status === 404) {
                         results = [];
                     } else {
-                        throw err;
+                        setError('Error searching by code');
                     }
                 }
-            } else if (searchForm.estado) {
-                const statusMap = {
-                    'Pendiente': 'PENDING',
-                    'Listo': 'READY',
-                    'Entregado': 'DELIVERED',
-                    'Cancelado': 'CANCELLED'
-                };
-
-                const backendStatus = statusMap[searchForm.estado] || searchForm.estado;
-                results = await getOrdersByStatus(backendStatus);
-            } else if (searchForm.mesa.trim()) {
-                const allOrders = await getAllOrders();
-                results = allOrders.filter(order => {
-                    const tableNumber = extractTableNumber(order.details);
-                    return tableNumber.includes(searchForm.mesa);
-                });
+            } else if (searchForm.estado.trim()) {
+                const response = await getOrdersByStatus(searchForm.estado);
+                results = response.data;
             } else {
-                results = await getAllOrders();
+                const response = await getAllOrders();
+                results = response.data;
             }
-
-            setSearchResults(Array.isArray(results) ? results : []);
-
-            if (onSearch) {
-                onSearch(results, searchForm);
-            }
-
-        } catch (err) {
-            console.error('Error en búsqueda:', err);
-            setError(err.response?.data?.message || 'Error al realizar la búsqueda');
-            setSearchResults([]);
+            setSearchResults(results);
+            if (onSearch) onSearch(results);
+        } catch {
+            setError('Error searching orders');
         } finally {
             setLoading(false);
         }
     }, [searchForm, onSearch]);
 
-    const handleSearch = (e) => {
+    const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        performSearch();
+        (async () => {
+            await performSearch();
+        })();
     };
 
     const handleClear = () => {
@@ -149,15 +144,16 @@ const OrderSearch = ({ onSearch }) => {
         setSearchResults([]);
         setError('');
         setHasSearched(false);
-
         if (onSearch) {
-            onSearch([], { codigo: '', estado: ''});
+            onSearch([]);
         }
     };
 
     useEffect(() => {
         if (searchForm.estado && !searchForm.codigo) {
-            performSearch();
+            (async () => {
+                await performSearch();
+            })();
         }
     }, [searchForm.estado, searchForm.codigo, performSearch]);
 
@@ -256,14 +252,14 @@ const OrderSearch = ({ onSearch }) => {
                                         </div>
                                     </div>
 
-                                    {order.items && order.items.length > 0 && (
+                                    {Array.isArray(order.items) && order.items.length > 0 && (
                                         <div className="mt-2">
-                                            <small className="text-muted d-block mb-1">Productos:</small>
+                                            <small className="text-muted d-block mb-1">Products:</small>
                                             <div className="bg-light p-2 rounded">
-                                                {order.items.map((item, index) => (
+                                                {order.items?.map((item, index) => (
                                                     <div
                                                         key={index}
-                                                        className={`small mb-1 ${index === order.items.length - 1 ? 'mb-0' : ''}`}
+                                                        className={`small mb-1 ${index === (order.items?.length ?? 0) - 1 ? 'mb-0' : ''}`}
                                                     >
                                                         • {item}
                                                     </div>

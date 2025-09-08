@@ -15,10 +15,45 @@ import {
 } from 'react-bootstrap-icons';
 import OrderTable from './OrderTable';
 import OrderSearch from './OrderSearch';
-import OrderNotifications from './OrderNotifications';
-import { createOrder } from '../../service/api';
+import {createOrder, type OrderData} from '../../service/api';
 
-const menuItems = [
+interface Order {
+    data: OrderData;
+    horasolicitud: string;
+    clienteSolicitante: string;
+    mesa: string;
+}
+
+declare global {
+    interface Window {
+        updateOrderTable?: (order: Order) => void;
+    }
+}
+
+interface MenuItem {
+    id: number;
+    nombre: string;
+    precio: number;
+    tipo: string;
+}
+
+interface OrderItem {
+    item: MenuItem;
+    quantity: number;
+}
+
+interface NewOrder {
+    customerName: string;
+    tableNumber: string;
+    selectedItems: OrderItem[];
+    notes: string;
+}
+
+interface OrderStatusProps {
+    onToast: (msg: string, type?: string) => void;
+}
+
+const menuItems: MenuItem[] = [
     { id: 1, nombre: "Hamburguesa", precio: 10.0, tipo: "PRODUCTO" },
     { id: 2, nombre: "Papas a la Francesa", precio: 5.0, tipo: "PRODUCTO" },
     { id: 3, nombre: "Bebida", precio: 2.0, tipo: "PRODUCTO" },
@@ -27,11 +62,11 @@ const menuItems = [
     { id: 6, nombre: "2 Hamburguesas + 2 Papas a la Francesa + 2 Bebidas", precio: 34.0, tipo: "COMBO" }
 ];
 
-const OrderStatus = ({ onToast }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentTime, setCurrentTime] = useState(new Date());
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newOrder, setNewOrder] = useState({
+const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
+    const [searchTerm] = useState<string>('');
+    const [currentTime, setCurrentTime] = useState<Date>(new Date());
+    const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+    const [newOrder, setNewOrder] = useState<NewOrder>({
         customerName: '',
         tableNumber: '',
         selectedItems: [],
@@ -46,7 +81,7 @@ const OrderStatus = ({ onToast }) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const handleInputChange = (e) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setNewOrder({
             ...newOrder,
@@ -54,11 +89,11 @@ const OrderStatus = ({ onToast }) => {
         });
     };
 
-    const handleItemSelect = (e) => {
+    const handleItemSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedItemId = parseInt(e.target.value);
         if (selectedItemId) {
             const selectedItem = menuItems.find(item => item.id === selectedItemId);
-
+            if (!selectedItem) return;
             const existingItemIndex = newOrder.selectedItems.findIndex(
                 orderItem => orderItem.item.id === selectedItemId
             );
@@ -83,7 +118,7 @@ const OrderStatus = ({ onToast }) => {
         e.target.value = "";
     };
 
-    const handleRemoveItem = (index) => {
+    const handleRemoveItem = (index: number) => {
         const updatedItems = [...newOrder.selectedItems];
         updatedItems.splice(index, 1);
         setNewOrder({
@@ -92,7 +127,7 @@ const OrderStatus = ({ onToast }) => {
         });
     };
 
-    const handleQuantityChange = (index, quantity) => {
+    const handleQuantityChange = (index: number, quantity: string) => {
         const updatedItems = [...newOrder.selectedItems];
         updatedItems[index].quantity = Math.max(1, parseInt(quantity) || 1);
         setNewOrder({
@@ -115,60 +150,25 @@ const OrderStatus = ({ onToast }) => {
         return details;
     };
 
-    const generateItemsList = () => {
-        const itemsList = [];
-
-        newOrder.selectedItems.forEach(orderItem => {
-            const { item, quantity } = orderItem;
-            const itemTotal = item.precio * quantity;
-
-            if (quantity === 1) {
-                const itemString = item.tipo === "COMBO"
-                    ? `${item.nombre} - $${itemTotal.toFixed(1)} (Combo)`
-                    : `${item.nombre} - $${itemTotal.toFixed(1)}`;
-                itemsList.push(itemString);
-            } else {
-                const itemString = item.tipo === "COMBO"
-                    ? `${quantity}x ${item.nombre} - $${itemTotal.toFixed(1)} (Combo)`
-                    : `${quantity}x ${item.nombre} - $${itemTotal.toFixed(1)}`;
-                itemsList.push(itemString);
-            }
-        });
-
-        return itemsList;
-    };
-
     const handleCreateOrder = () => {
         if (!newOrder.customerName.trim()) {
-            onToast && onToast({
-                title: 'Error de validación',
-                message: 'El nombre del cliente es requerido',
-                type: 'error'
-            });
+            onToast('El nombre del cliente es requerido', 'error');
             return;
         }
 
         if (!newOrder.tableNumber) {
-            onToast && onToast({
-                title: 'Error de validación',
-                message: 'El número de mesa es requerido',
-                type: 'error'
-            });
+            onToast('El número de mesa es requerido', 'error');
             return;
         }
 
         if (newOrder.selectedItems.length === 0) {
-            onToast && onToast({
-                title: 'Error de validación',
-                message: 'Debe seleccionar al menos un producto o combo',
-                type: 'error'
-            });
+            onToast('Debe seleccionar al menos un producto o combo', 'error');
             return;
         }
 
-        const orderDetails = generateOrderDetails();
+        const orderDetails: string = generateOrderDetails();
 
-        const components = newOrder.selectedItems.flatMap(orderItem => {
+        const components: {id: number; type: string}[] = newOrder.selectedItems.flatMap(orderItem => {
             const componentsArray = [];
             for (let i = 0; i < orderItem.quantity; i++) {
                 componentsArray.push({
@@ -189,31 +189,28 @@ const OrderStatus = ({ onToast }) => {
         const orderData = {
             details: orderDetails,
             components: components,
-            horaEntrega: null, // Inicialmente null, se establecerá cuando cambie a entregado
+            horaEntrega: null,
             clienteSolicitante: newOrder.customerName,
-            mesa: newOrder.tableNumber
+            mesa: newOrder.tableNumber,
+            id: null,
+            horaSolicitud: null,
         };
 
         console.log('Enviando pedido:', orderData);
 
         createOrder(orderData)
             .then(response => {
+                const data = response.data || {};
                 const orderConHoraLocal = {
-                    ...response,
+                    ...data,
                     horasolicitud: horaLocal,
                     clienteSolicitante: newOrder.customerName,
                     mesa: newOrder.tableNumber
                 };
 
-                if (window.updateOrderTable) {
-                    window.updateOrderTable(orderConHoraLocal);
-                }
+                (window as Window).updateOrderTable?.(orderConHoraLocal);
 
-                onToast && onToast({
-                    title: 'Pedido creado',
-                    message: `Pedido #${response.id} creado a las ${horaLocal} por un total de $${response.price}`,
-                    type: 'success'
-                });
+                onToast(`Pedido #${data.id} creado a las ${horaLocal} por un total de $${data.price}`, 'success');
 
                 setNewOrder({
                     customerName: '',
@@ -224,16 +221,10 @@ const OrderStatus = ({ onToast }) => {
             })
             .catch(error => {
                 console.error('Error al crear pedido:', error);
-
                 const errorMessage = error.response?.data?.message ||
                     error.message ||
                     'No se pudo crear el pedido. Inténtalo de nuevo.';
-
-                onToast && onToast({
-                    title: 'Error al crear pedido',
-                    message: errorMessage,
-                    type: 'error'
-                });
+                onToast(errorMessage, 'error');
             })
             .finally(() => {
                 setShowCreateModal(false);
@@ -273,12 +264,12 @@ const OrderStatus = ({ onToast }) => {
                 <Row>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            <OrderSearch onSearch={setSearchTerm} />
+                            <OrderSearch onSearch={() => {}} />
                         </div>
                     </Col>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            <OrderNotifications onToast={onToast} />
+                            {/* <OrderNotifications onToast={onToast} /> */}
                         </div>
                     </Col>
                 </Row>
@@ -456,3 +447,4 @@ const OrderStatus = ({ onToast }) => {
 };
 
 export default OrderStatus;
+
