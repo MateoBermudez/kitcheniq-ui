@@ -13,22 +13,6 @@ code {
   monospace;
 }
 
-.main-container {
-  min-height: 100vh;
-}
-
-.sidebar-fixed {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  z-index: 1000;
-}
-
-.content-with-sidebar {
-  margin-left: 250px;
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

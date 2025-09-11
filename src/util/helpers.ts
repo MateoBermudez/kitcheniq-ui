@@ -1,4 +1,4 @@
-export const getStatusVariant = (estado) => {
+export const getStatusVariant = (estado: string) => {
     switch (estado?.toLowerCase()) {
         case 'pendiente': return 'warning';
         case 'listo': return 'success';
@@ -8,11 +8,11 @@ export const getStatusVariant = (estado) => {
     }
 };
 
-export const formatTime = (timeString) => {
+export const formatTime = (timeString: string) => {
     if (!timeString) return '--:--';
     return timeString;
 };
 
-export const formatDate = (date) => {
+export const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('es-ES');
 };

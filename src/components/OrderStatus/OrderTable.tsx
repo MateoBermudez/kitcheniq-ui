@@ -10,24 +10,36 @@ import {
     Clipboard,
     Trash
 } from 'react-bootstrap-icons';
-import { getAllOrders, updateOrderStatus, deleteOrder } from '../../service/api';
+import {getAllOrders, updateOrderStatus, deleteOrder, type OrderData, type OrderComponentData} from '../../service/api';
 
-declare global {
-    interface Window {
-        updateOrderTable?: (newOrder: any) => void;
-    }
+// Types for the order table
+export interface OrderTableRow extends Omit<OrderData, 'details'> {
+    details: string;
+    codigo: string;
+    estado: string;
+    horasolicitud: string | null;
+    horaEntrega: string | null;
+    clienteSolicitante: string;
+    mesa: string;
+    items: OrderComponentData[];
+    originalStatus?: string;
 }
 
-const OrderTable = ({ searchTerm, onToast }) => {
-    const [orders, setOrders] = useState([]);
-    const [updatingOrder, setUpdatingOrder] = useState(null);
-    const [deletingOrder, setDeletingOrder] = useState(null);
+interface OrderTableProps {
+    searchTerm: string;
+    onToast: (msg: string, type?: string) => void;
+}
+
+const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
+    const [orders, setOrders] = useState<OrderTableRow[]>([]);
+    const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
+    const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
     const [isHovered, setIsHovered] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [orderToDelete, setOrderToDelete] = useState(null);
+    const [orderToDelete, setOrderToDelete] = useState<OrderTableRow | null>(null);
     const [localOrderTimes, setLocalOrderTimes] = useState(() => {
         const saved = localStorage.getItem('orderCreationTimes');
         return saved ? JSON.parse(saved) : {};
@@ -36,6 +48,19 @@ const OrderTable = ({ searchTerm, onToast }) => {
         const saved = localStorage.getItem('orderDeliveryTimes');
         return saved ? JSON.parse(saved) : {};
     });
+
+    const mapStatusToSpanish = useCallback((status: string): string => {
+        const statusMap: Record<string, string> = {
+            'PENDING': 'Pendiente',
+            'READY': 'Listo',
+            'DELIVERED': 'Entregado',
+            'CANCELLED': 'Cancelado',
+            'PREPARING': 'Pendiente',
+            'COMPLETED': 'Entregado',
+            'IN_PROGRESS': 'Pendiente'
+        };
+        return statusMap[status.toUpperCase()] ?? status ?? 'Pendiente';
+    }, []);
 
     useEffect(() => {
         window.updateOrderTable = (newOrder) => {
@@ -103,20 +128,6 @@ const OrderTable = ({ searchTerm, onToast }) => {
         return null;
     }, []);
 
-    const mapStatusToSpanish = useCallback((status) => {
-        if (!status) return 'Pendiente';
-
-        const statusMap = {
-            'PENDING': 'Pendiente',
-            'READY': 'Listo',
-            'DELIVERED': 'Entregado',
-            'CANCELLED': 'Cancelado',
-            'PREPARING': 'Pendiente',
-            'COMPLETED': 'Entregado',
-            'IN_PROGRESS': 'Pendiente'
-        };
-        return statusMap[status.toString().toUpperCase()] || status || 'Pendiente';
-    }, []);
 
     const mapStatusToEnglish = useCallback((spanishStatus) => {
         const statusMap = {
@@ -128,19 +139,34 @@ const OrderTable = ({ searchTerm, onToast }) => {
         return statusMap[spanishStatus] || spanishStatus;
     }, []);
 
+    const mapOrderData = useCallback((backendOrder: Record<string, unknown>): OrderTableRow => {
+        const orderId = typeof backendOrder.id === 'number' ? backendOrder.id :
+            typeof backendOrder._id === 'number' ? backendOrder._id : null;
+        const horasolicitud = orderId !== null ? (localOrderTimes[String(orderId)] || 'N/A') : 'N/A';
+        const horaEntrega = orderId !== null ? (localDeliveryTimes[String(orderId)] || null) : null;
+        return {
+            id: orderId,
+            codigo: typeof backendOrder.codigo === 'string' ? backendOrder.codigo : `ORD-${orderId ?? 'XXX'}`,
+            clienteSolicitante: typeof backendOrder.clienteSolicitante === 'string' ? backendOrder.clienteSolicitante : 'Cliente',
+            mesa: typeof backendOrder.mesa === 'string' ? backendOrder.mesa : 'N/A',
+            estado: mapStatusToSpanish(typeof backendOrder.status === 'string' ? backendOrder.status : 'PENDING'),
+            horasolicitud,
+            horaEntrega,
+            items: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
+            details: typeof backendOrder.details === 'string' ? backendOrder.details : '',
+            originalStatus: typeof backendOrder.originalStatus === 'string' ? backendOrder.originalStatus : undefined,
+            horaSolicitud: typeof backendOrder.horaSolicitud === 'string' ? backendOrder.horaSolicitud : null,
+            components: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
+        };
+    }, [localOrderTimes, localDeliveryTimes, mapStatusToSpanish]);
+
     const loadOrders = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-
-            const ordersData = await getAllOrders();
-
-            if (!ordersData) {
-                throw new Error('No se recibieron datos del servidor');
-            }
-
-            let processedOrders = [];
-
+            const response = await getAllOrders();
+            const ordersData = response.data ?? response;
+            let processedOrders: Partial<OrderTableRow>[] = [];
             if (Array.isArray(ordersData)) {
                 processedOrders = ordersData;
             } else if (ordersData.data && Array.isArray(ordersData.data)) {
@@ -154,52 +180,28 @@ const OrderTable = ({ searchTerm, onToast }) => {
             } else if (ordersData.items && Array.isArray(ordersData.items)) {
                 processedOrders = ordersData.items;
             } else if (typeof ordersData === 'object') {
-                const values = Object.values(ordersData);
-                if (values.length > 0 && values.every(item =>
-                    typeof item === 'object' &&
-                    item !== null &&
-                    (item.id || item._id || item.codigo)
-                )) {
-                    processedOrders = values;
-                } else {
-                    if (ordersData.id || ordersData._id || ordersData.codigo) {
-                        processedOrders = [ordersData];
-                    }
+                if ('id' in ordersData || '_id' in ordersData || 'codigo' in ordersData) {
+                    processedOrders = [ordersData];
                 }
             }
-
-            console.log('Pedidos procesados:', processedOrders);
-
-            if (processedOrders.length === 0) {
-                processedOrders = [];
-            }
-
-            const mappedOrders = processedOrders.map(order => mapOrderData(order));
+            const mappedOrders: OrderTableRow[] = processedOrders.map(mapOrderData);
             setOrders(mappedOrders);
-
         } catch (err) {
             let errorMessage = 'Error al cargar los pedidos';
-
-            if (err.name === 'TypeError' && err.message.includes('fetch')) {
-                errorMessage = 'No se puede conectar con el servidor. Verifica que esté funcionando en http://localhost:8080';
-            } else if (err.message.includes('500')) {
-                errorMessage = 'Error interno del servidor. Revisa los logs del backend.';
-            } else if (err.message.includes('404')) {
-                errorMessage = 'Endpoint no encontrado. Verifica la URL de la API.';
-            } else if (err.message.includes('CORS')) {
-                errorMessage = 'Error de CORS. Configura el servidor para permitir requests desde el frontend.';
-            } else {
+            if (err instanceof Error) {
                 errorMessage = err.message || errorMessage;
             }
-
             setError(errorMessage);
-            onToast && onToast(errorMessage, 'error');
+            onToast(errorMessage, 'error');
         } finally {
             setLoading(false);
         }
     }, [mapOrderData, onToast]);
 
     useEffect(() => {
+        (async () => {
+            await loadOrders();
+        })();
         loadOrders();
     }, []);
 
@@ -211,21 +213,32 @@ const OrderTable = ({ searchTerm, onToast }) => {
         return () => clearInterval(intervalId);
     }, [loadOrders]);
 
+    // Corrects the statusMap indexing
+    const mapStatusToEnglish = useCallback((spanishStatus: string): string => {
+        const statusMap: Record<string, string> = {
+            'Pendiente': 'PENDING',
+            'Listo': 'READY',
+            'Entregado': 'DELIVERED',
+            'Cancelado': 'CANCELLED'
+        };
+        return statusMap[spanishStatus] ?? spanishStatus;
+    }, []);
+
     const handleRefresh = async () => {
         try {
             setRefreshing(true);
             await loadOrders();
-            onToast && onToast('Pedidos actualizados correctamente', 'success');
+            onToast('Pedidos actualizados correctamente', 'success');
         } catch (err) {
             console.error('Error refreshing orders:', err);
-            onToast && onToast('Error al actualizar los pedidos', 'error');
+            onToast('Error al actualizar los pedidos', 'error');
         } finally {
             setRefreshing(false);
         }
     };
 
     const filteredOrders = React.useMemo(() => {
-        let filtered = searchTerm
+        const filtered = searchTerm
             ? orders.filter(order =>
                 order.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 order.clienteSolicitante?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -243,7 +256,7 @@ const OrderTable = ({ searchTerm, onToast }) => {
         return filtered;
     }, [orders, searchTerm]);
 
-    const getBadgeStyle = useCallback((estado) => {
+    const getBadgeStyle = useCallback((estado: string): React.CSSProperties => {
         switch (estado?.toLowerCase()) {
             case 'pendiente':
                 return {
@@ -278,29 +291,23 @@ const OrderTable = ({ searchTerm, onToast }) => {
         }
     }, []);
 
-    const handleStatusChange = async (codigo, nuevoEstado) => {
+    const handleStatusChange = async (codigo: string, nuevoEstado: string) => {
         try {
             setUpdatingOrder(codigo);
-
             const order = orders.find(o => o.codigo === codigo);
             if (!order) {
-                throw new Error('Pedido no encontrado');
+                onToast('Pedido no encontrado', 'error');
+                setUpdatingOrder(null);
+                return;
             }
-
             const backendStatus = mapStatusToEnglish(nuevoEstado);
-
-            let updateData = {
-                status: backendStatus
-            };
-
             let horaEntregaActual = null;
-            if (nuevoEstado === 'Entregado') {
+            if (nuevoEstado === 'Entregado' && order.id !== null) {
                 horaEntregaActual = new Date().toLocaleTimeString('es-ES', {
                     hour: '2-digit',
                     minute: '2-digit',
                     hour12: false
                 });
-
                 const newDeliveryTimes = {
                     ...localDeliveryTimes,
                     [order.id]: horaEntregaActual
@@ -308,9 +315,7 @@ const OrderTable = ({ searchTerm, onToast }) => {
                 setLocalDeliveryTimes(newDeliveryTimes);
                 localStorage.setItem('orderDeliveryTimes', JSON.stringify(newDeliveryTimes));
             }
-
-            await updateOrderStatus(order.id, backendStatus);
-
+            await updateOrderStatus(Number(order.id), backendStatus);
             setOrders(prevOrders =>
                 prevOrders.map(o =>
                     o.codigo === codigo
@@ -323,50 +328,49 @@ const OrderTable = ({ searchTerm, onToast }) => {
                         : o
                 )
             );
-
-            onToast && onToast(`Pedido ${codigo} actualizado a ${nuevoEstado}`, 'success');
+            onToast(`Pedido ${codigo} actualizado a ${nuevoEstado}`, 'success');
         } catch (err) {
             console.error('Error updating order status:', err);
-            const errorMessage = err.message || `Error al actualizar el pedido ${codigo}`;
-            onToast && onToast(errorMessage, 'error');
+            let errorMessage = `Error al actualizar el pedido ${codigo}`;
+            if (err instanceof Error) {
+                errorMessage = err.message || errorMessage;
+            }
+            onToast(errorMessage, 'error');
         } finally {
             setUpdatingOrder(null);
         }
     };
 
-    const handleDeleteClick = (order) => {
+    const handleDeleteClick = (order: OrderTableRow) => {
         setOrderToDelete(order);
         setShowDeleteModal(true);
     };
 
     const confirmDelete = async () => {
         if (!orderToDelete) return;
-
         try {
             setDeletingOrder(orderToDelete.codigo);
             setShowDeleteModal(false);
-
-            await deleteOrder(orderToDelete.id);
-
+            await deleteOrder(Number(orderToDelete.id));
             setOrders(prevOrders =>
                 prevOrders.filter(o => o.codigo !== orderToDelete.codigo)
             );
-
             const newTimes = { ...localOrderTimes };
-            delete newTimes[orderToDelete.id];
+            if (orderToDelete.id !== null) {
+                delete newTimes[orderToDelete.id];
+            }
             setLocalOrderTimes(newTimes);
             localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
-
             const newDeliveryTimes = { ...localDeliveryTimes };
-            delete newDeliveryTimes[orderToDelete.id];
+            if (orderToDelete.id !== null) {
+                delete newDeliveryTimes[orderToDelete.id];
+            }
             setLocalDeliveryTimes(newDeliveryTimes);
             localStorage.setItem('orderDeliveryTimes', JSON.stringify(newDeliveryTimes));
-
-            onToast && onToast(`Pedido ${orderToDelete.codigo} eliminado correctamente`, 'success');
+            onToast(`Pedido ${orderToDelete.codigo} eliminado correctamente`, 'success');
         } catch (err) {
-            console.error('Error deleting order:', err);
-            const errorMessage = err.message || `Error al eliminar el pedido ${orderToDelete.codigo}`;
-            onToast && onToast(errorMessage, 'error');
+            const errorMessage = err instanceof Error ? err.message : `Error al eliminar el pedido ${orderToDelete.codigo}`;
+            onToast(errorMessage, 'error');
         } finally {
             setDeletingOrder(null);
             setOrderToDelete(null);
@@ -559,6 +563,7 @@ const OrderTable = ({ searchTerm, onToast }) => {
                 )}
             </div>
 
+            {/* Confirmation modal for deletion */}
             <Modal show={showDeleteModal} onHide={cancelDelete} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>

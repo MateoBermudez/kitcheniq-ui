@@ -2,6 +2,23 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8080/api/v1'; // Use ENV Variables
 
+
+export interface OrderComponentData {
+    id: number;
+    type: string;
+}
+
+// Tipo para el objeto orderData
+export interface OrderData {
+    id: number | null;
+    details: string;
+    components: OrderComponentData[];
+    horaEntrega: string | null;
+    horaSolicitud: string | null;
+    clienteSolicitante: string;
+    mesa: string;
+}
+
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
     timeout: 10000000,
@@ -22,11 +39,11 @@ apiClient.interceptors.request.use(
 );
 
 // CRUD Operations
-export const createOrder = (orderData) => {
+export const createOrder = (orderData: OrderData) => {
     return apiClient.post('/orders/create', orderData);
 };
 
-export const getOrderById = (id) => {
+export const getOrderById = (id: number) => {
     return apiClient.get(`/orders/get/${id}`);
 };
 
@@ -34,19 +51,19 @@ export const getAllOrders = () => {
     return apiClient.get('/orders/getAll');
 };
 
-export const updateOrder = (id, orderData) => {
+export const updateOrder = (id: number, orderData: string) => {
     return apiClient.put(`/orders/update/${id}`, orderData);
 };
 
-export const deleteOrder = (id) => {
+export const deleteOrder = (id: number) => {
     return apiClient.delete(`/orders/delete/${id}`);
 };
 
-export const getOrdersByStatus = (status) => {
+export const getOrdersByStatus = (status: string) => {
     return apiClient.get(`/orders/getByStatus/${status}`);
 };
 
-export const updateOrderStatus = (id, status) => {
+export const updateOrderStatus = (id: number, status: string) => {
     return apiClient.post(`/orders/updateStatus/${id}/${status}`);
 };
 

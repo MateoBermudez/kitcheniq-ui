@@ -1,10 +1,9 @@
-import React from 'react';
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
 import logo from '../../assets/LogoKitchenIQ.png';
 
 const TopNavbar = () => {
-    const fechaActual = new Date().toLocaleDateString('es-ES', {
+    const actualDate = new Date().toLocaleDateString('es-ES', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
@@ -30,7 +29,7 @@ const TopNavbar = () => {
                 </div>
                 <Nav className="ms-auto d-flex align-items-center">
                     <Nav.Item className="text-dark me-3">
-                        {fechaActual}
+                        {actualDate}
                     </Nav.Item>
                     <Nav.Link onClick={handleLogout} className="text-dark">
                         <BoxArrowRight size={24} />

@@ -1,30 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface Toast {
-    id: number;
-    title?: string;
-    message: string;
-    type: string;
-    timestamp: string;
-    duration?: number;
-}
-
-export interface ToastContextType {
-    toasts: Toast[];
-    removeToast: (id: number) => void;
-    showSuccess: (msg: string | Partial<Toast>) => number;
-    showError: (msg: string | Partial<Toast>) => number;
-    showWarning: (msg: string | Partial<Toast>) => number;
-    showInfo: (msg: string | Partial<Toast>) => number;
-}
-
-export const ToastContext = createContext<ToastContextType | undefined>(undefined);
-
-export const useToast = () => {
-    const context = useContext(ToastContext);
-    if (!context) throw new Error('useToast debe usarse dentro de ToastProvider');
-    return context;
-};
+import { useState, type ReactNode } from 'react';
+import {type Toast, ToastContext} from './toastContext.ts';
 
 interface ToastProviderProps {
     children: ReactNode;
@@ -39,7 +14,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
         duration: number = 5000
     ): number => {
         const id = Date.now();
-        let message: string = '';
+        let message: string;
         let type: string = typeArg;
         let title: string | undefined = undefined;
         let toastDuration = duration;
