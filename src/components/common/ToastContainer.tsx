@@ -78,7 +78,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
                     >
                         <Toast.Header style={toastStyle.header}>
                             {getToastIcon(toast.type)}
-                            <strong className="me-auto">Estado de Pedidos</strong>
+                            <strong className="me-auto">Order Status</strong>
                             <small>{toast.timestamp}</small>
                         </Toast.Header>
                         <Toast.Body style={toastStyle.body}>
