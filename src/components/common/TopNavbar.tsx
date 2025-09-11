@@ -1,6 +1,6 @@
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
-import logo from '../../assets/LogoKitchenIQ.png';
+import logo from '../../assets/letras.png';
 
 const TopNavbar = () => {
     const actualDate = new Date().toLocaleDateString('es-ES', {
@@ -16,15 +16,19 @@ const TopNavbar = () => {
     return (
         <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#B1E5FF' }}>
             <Container fluid>
-                <div className="ms-4">
+                <div className="ms-2">
                     <Navbar.Brand href="/">
                         <img
                             src={logo}
-                            width="80"
-                            height="40"
                             className="d-inline-block align-top me-2"
                             alt="KitchenIQ Logo"
+                            style={{
+                                height: '40px',
+                                maxWidth: '120px',
+                                objectFit: 'contain'
+                            }}
                         />
+
                     </Navbar.Brand>
                 </div>
                 <Nav className="ms-auto d-flex align-items-center">

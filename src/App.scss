@@ -1,3 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
+
+.App {
+  text-align: center;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -8,7 +14,6 @@ html, body, #root {
   min-height: 100vh;
 }
 
-/* Estilos personalizados adicionales */
 .table th {
   font-weight: 600;
   font-size: 0.9rem;
@@ -24,4 +29,10 @@ html, body, #root {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.rounded-heading {
+  font-family: 'Rubik', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }

@@ -237,7 +237,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 <div className="p-3 border rounded-4 shadow mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h2 className="mb-1">ESTADO DE PEDIDOS</h2>
+                            <h2 className="mb-1 rounded-heading">ESTADO DE PEDIDOS</h2>
                             <small className="text-muted">
                                 <Clock size={14} className="me-1" />
                                 {currentTime.toLocaleTimeString()}

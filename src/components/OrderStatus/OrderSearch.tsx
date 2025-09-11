@@ -159,7 +159,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
     return (
         <div className="h-100 d-flex flex-column">
-            <h6 className="mb-3 fw-bold">BÚSQUEDA ESPECIALIZADA</h6>
+            <h6 className="mb-3 fw-bold rounded-heading">BÚSQUEDA ESPECIALIZADA</h6>
 
             <Form onSubmit={handleSearch} className="mb-3">
                 <Row className="g-3">

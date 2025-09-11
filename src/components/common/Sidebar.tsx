@@ -101,6 +101,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
+
                         <PersonCircle size={24} className="me-2 text-dark" />
                         PROFILE PICTURE
                     </Modal.Title>
@@ -115,10 +116,11 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
             </Modal>
 
             <Nav className="flex-column p-2">
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2">Control</div>
+                <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2 rounded-heading">Control</div>
                 {renderNavItems(controlItems)}
 
                 <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
+              
                 {renderNavItems(finanzasItems)}
             </Nav>
         </div>
