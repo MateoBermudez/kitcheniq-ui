@@ -104,10 +104,10 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
             </Modal>
 
             <Nav className="flex-column p-2">
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2">Control</div>
+                <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2 rounded-heading">Control</div>
                 {renderNavItems(controlItems)}
 
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finanzas</div>
+                <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2 rounded-heading">Finanzas</div>
                 {renderNavItems(finanzasItems)}
             </Nav>
         </div>
