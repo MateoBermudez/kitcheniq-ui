@@ -13,7 +13,7 @@ import {
 import {getAllOrders, updateOrderStatus, deleteOrder, type OrderData, type OrderComponentData} from '../../service/api';
 
 // Types for the order table
-export interface OrderTableRow extends Omit<OrderData, 'details'> {
+interface OrderTableRow extends Omit<OrderData, 'details'> {
     details: string;
     codigo: string;
     estado: string;
@@ -62,82 +62,6 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         return statusMap[status.toUpperCase()] ?? status ?? 'Pendiente';
     }, []);
 
-    useEffect(() => {
-        window.updateOrderTable = (newOrder) => {
-            setLocalOrderTimes(currentTimes => {
-                const newTimes = {
-                    ...currentTimes,
-                    [newOrder.id]: newOrder.horasolicitud
-                };
-                localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
-                return newTimes;
-            });
-
-            loadOrders();
-        };
-
-        return () => {
-            delete window.updateOrderTable;
-        };
-    }, []);
-
-    const mapOrderData = useCallback((backendOrder) => {
-        const safeOrder = backendOrder || {};
-
-        const orderId = safeOrder.id || safeOrder._id;
-        const horasolicitud = localOrderTimes[orderId] || 'N/A';
-        const horaEntrega = localDeliveryTimes[orderId] || null;
-
-        return {
-            id: orderId || Math.random().toString(36).substr(2, 9),
-            codigo: safeOrder.codigo || `ORD-${orderId || 'XXX'}`,
-            clienteSolicitante: safeOrder.clienteSolicitante ||
-                safeOrder.customer ||
-                safeOrder.client ||
-                extractClientFromDetails(safeOrder.details) ||
-                'Cliente',
-            mesa: safeOrder.mesa ||
-                safeOrder.table ||
-                safeOrder.tableNumber ||
-                extractTableFromBill(safeOrder.bill) ||
-                'N/A',
-            estado: mapStatusToSpanish(safeOrder.status || safeOrder.estado || 'PENDING'),
-            horasolicitud: horasolicitud,
-            horaEntrega: horaEntrega,
-            items: safeOrder.items || safeOrder.orderItems || [],
-            details: safeOrder.details || safeOrder.description || '',
-            bill: safeOrder.bill || safeOrder.total || '',
-            originalStatus: safeOrder.status || safeOrder.estado || 'PENDING'
-        };
-    }, [localOrderTimes, localDeliveryTimes]);
-
-    const extractClientFromDetails = useCallback((details) => {
-        if (!details || typeof details !== 'string') return null;
-
-        const clientMatch = details.match(/cliente:?\s*([^,\n]+)/i);
-        if (clientMatch) return clientMatch[1]?.trim();
-
-        return details.length > 20 ? details.substring(0, 20) + '...' : details;
-    }, []);
-
-    const extractTableFromBill = useCallback((bill) => {
-        if (!bill || typeof bill !== 'string') return null;
-
-        const tableMatch = bill.match(/mesa\s*(\d+)/i) || bill.match(/table\s*(\d+)/i);
-        if (tableMatch) return tableMatch[1];
-        return null;
-    }, []);
-
-
-    const mapStatusToEnglish = useCallback((spanishStatus) => {
-        const statusMap = {
-            'Pendiente': 'PENDING',
-            'Listo': 'READY',
-            'Entregado': 'DELIVERED',
-            'Cancelado': 'CANCELLED'
-        };
-        return statusMap[spanishStatus] || spanishStatus;
-    }, []);
 
     const mapOrderData = useCallback((backendOrder: Record<string, unknown>): OrderTableRow => {
         const orderId = typeof backendOrder.id === 'number' ? backendOrder.id :
@@ -159,6 +83,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             components: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
         };
     }, [localOrderTimes, localDeliveryTimes, mapStatusToSpanish]);
+
 
     const loadOrders = useCallback(async () => {
         try {
@@ -198,17 +123,39 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         }
     }, [mapOrderData, onToast]);
 
+
+
     useEffect(() => {
-        (async () => {
-            await loadOrders();
-        })();
-        loadOrders();
+        window.updateOrderTable = (newOrder) => {
+            setLocalOrderTimes((currentTimes: Record<string, string>) => {
+                if (!newOrder || !newOrder.data || !newOrder.data.id || !newOrder.horasolicitud) {
+                    return currentTimes;
+                }
+                const newTimes = {
+                    ...currentTimes,
+                    [newOrder.data.id]: newOrder.horasolicitud
+                };
+                localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
+                return newTimes;
+            });
+
+            loadOrders().then(() => {});
+        };
+
+        return () => {
+            delete window.updateOrderTable;
+        };
+    }, [loadOrders]);
+
+    // Initial load
+    useEffect(() => {
+        loadOrders().then(() => {});
     }, []);
 
     useEffect(() => {
         const intervalId = setInterval(() => {
-            loadOrders();
-        }, 30000); // 30 segundos
+            loadOrders().then(() => {});
+        }, 30000); // 30 seconds
 
         return () => clearInterval(intervalId);
     }, [loadOrders]);
@@ -602,5 +549,4 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         </>
     );
 };
-
 export default OrderTable;
