@@ -14,7 +14,7 @@ import {
     FileEarmarkBarGraph,
     PersonCircle
 } from 'react-bootstrap-icons';
-import perfilImage from '../../../../kitcheniq-ui-refactor/src/assets/profilepic.jpg';
+import perfilImage from '../../assets/profilepic.jpg';
 
 const Sidebar = ({ activeSection, onSectionChange }) => {
     const [showImageModal, setShowImageModal] = useState(false);
@@ -90,7 +90,7 @@ const Sidebar = ({ activeSection, onSectionChange }) => {
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
-                        <PersonCircle size={24} className="me-2 text-dark" />
+                        <PersonCircle size={24} className="me-2 text-dark rounded-heading" />
                         FOTO DE PERFIL
                     </Modal.Title>
                 </Modal.Header>
