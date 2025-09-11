@@ -1,6 +1,6 @@
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
-import logo from '../../../../kitcheniq-ui-refactor/src/assets/LogoKitchenIQ.png';
+import logo from '../../assets/LogoKitchenIQ.png';
 
 const TopNavbar = () => {
     const actualDate = new Date().toLocaleDateString('es-ES', {

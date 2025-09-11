@@ -13,7 +13,7 @@ import {
 import {getAllOrders, updateOrderStatus, deleteOrder, type OrderData, type OrderComponentData} from '../../service/api';
 
 // Types for the order table
-export interface OrderTableRow extends Omit<OrderData, 'details'> {
+interface OrderTableRow extends Omit<OrderData, 'details'> {
     details: string;
     codigo: string;
     estado: string;
@@ -62,6 +62,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         return statusMap[status.toUpperCase()] ?? status ?? 'Pendiente';
     }, []);
 
+
     const mapOrderData = useCallback((backendOrder: Record<string, unknown>): OrderTableRow => {
         const orderId = typeof backendOrder.id === 'number' ? backendOrder.id :
             typeof backendOrder._id === 'number' ? backendOrder._id : null;
@@ -82,6 +83,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             components: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
         };
     }, [localOrderTimes, localDeliveryTimes, mapStatusToSpanish]);
+
 
     const loadOrders = useCallback(async () => {
         try {
@@ -121,10 +123,41 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         }
     }, [mapOrderData, onToast]);
 
+
+
     useEffect(() => {
-        (async () => {
-            await loadOrders();
-        })();
+        window.updateOrderTable = (newOrder) => {
+            setLocalOrderTimes((currentTimes: Record<string, string>) => {
+                if (!newOrder || !newOrder.data || !newOrder.data.id || !newOrder.horasolicitud) {
+                    return currentTimes;
+                }
+                const newTimes = {
+                    ...currentTimes,
+                    [newOrder.data.id]: newOrder.horasolicitud
+                };
+                localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
+                return newTimes;
+            });
+
+            loadOrders().then(() => {});
+        };
+
+        return () => {
+            delete window.updateOrderTable;
+        };
+    }, [loadOrders]);
+
+    // Initial load
+    useEffect(() => {
+        loadOrders().then(() => {});
+    }, []);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            loadOrders().then(() => {});
+        }, 30000); // 30 seconds
+
+        return () => clearInterval(intervalId);
     }, [loadOrders]);
 
     // Corrects the statusMap indexing
@@ -516,5 +549,4 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         </>
     );
 };
-
 export default OrderTable;
