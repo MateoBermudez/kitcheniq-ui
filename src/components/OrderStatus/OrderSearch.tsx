@@ -5,12 +5,11 @@ import { getOrderById, getOrdersByStatus, getAllOrders } from '../../service/api
 
 interface Order {
     id: number;
-    codigo?: string;
-    estado?: string;
+    code?: string;
+    status?: string;
     details?: string;
     price?: number;
     bill?: string;
-    status?: string;
     orderDate?: string;
     items?: string[];
 }
@@ -20,9 +19,9 @@ interface OrderSearchProps {
 }
 
 const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
-    const [searchForm, setSearchForm] = useState<{ codigo: string; estado: string }>({
-        codigo: '',
-        estado: ''
+    const [searchForm, setSearchForm] = useState<{ code: string; status: string }>({
+        code: '',
+        status: ''
     });
     const [searchResults, setSearchResults] = useState<Order[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -38,13 +37,13 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
     const extractCustomerName = (details: string | undefined): string => {
         if (!details) return 'Customer not specified';
-        const match = details.match(/Nombre Cliente:\s*([^\n]+)/);
+        const match = details.match(/Customer Name:\s*([^\n]+)/);
         return match ? match[1].trim() : 'Customer not specified';
     };
 
     const extractTableNumber = (details: string | undefined): string => {
         if (!details) return '';
-        const match = details.match(/Mesa\s*(\d+)/);
+        const match = details.match(/Table\s*(\d+)/);
         return match ? `Table ${match[1]}` : '';
     };
 
@@ -67,13 +66,10 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
             case 'PENDING':
                 return 'warning';
             case 'READY':
-            case 'LISTO':
                 return 'success';
             case 'DELIVERED':
-            case 'ENTREGADO':
                 return 'primary';
             case 'CANCELLED':
-            case 'CANCELADO':
                 return 'danger';
             default:
                 return 'secondary';
@@ -101,9 +97,9 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
         setHasSearched(true);
         try {
             let results: Order[] = [];
-            if (searchForm.codigo.trim()) {
+            if (searchForm.code.trim()) {
                 try {
-                    const response = await getOrderById(parseInt(searchForm.codigo));
+                    const response = await getOrderById(parseInt(searchForm.code));
                     const order: Order = response.data;
                     results = [order];
                 } catch (err) {
@@ -113,8 +109,8 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                         setError('Error searching by code');
                     }
                 }
-            } else if (searchForm.estado.trim()) {
-                const response = await getOrdersByStatus(searchForm.estado);
+            } else if (searchForm.status.trim()) {
+                const response = await getOrdersByStatus(searchForm.status);
                 results = response.data;
             } else {
                 const response = await getAllOrders();
@@ -138,8 +134,8 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
     const handleClear = () => {
         setSearchForm({
-            codigo: '',
-            estado: ''
+            code: '',
+            status: ''
         });
         setSearchResults([]);
         setError('');
@@ -150,48 +146,48 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
     };
 
     useEffect(() => {
-        if (searchForm.estado && !searchForm.codigo) {
+        if (searchForm.status && !searchForm.code) {
             (async () => {
                 await performSearch();
             })();
         }
-    }, [searchForm.estado, searchForm.codigo, performSearch]);
+    }, [searchForm.status, searchForm.code, performSearch]);
 
     return (
         <div className="h-100 d-flex flex-column">
-            <h6 className="mb-3 fw-bold rounded-heading">BÚSQUEDA ESPECIALIZADA</h6>
+            <h6 className="mb-3 fw-bold rounded-heading">SPECIALIZED SEARCH</h6>
 
             <Form onSubmit={handleSearch} className="mb-3">
                 <Row className="g-3">
                     <Col md={6}>
-                        <Form.Label>Código de Pedido</Form.Label>
+                        <Form.Label>Order Code</Form.Label>
                         <InputGroup>
                             <Form.Control
                                 type="text"
-                                placeholder="Ej: 123"
-                                value={searchForm.codigo}
-                                onChange={(e) => handleInputChange('codigo', e.target.value)}
+                                placeholder="Ex: 123"
+                                value={searchForm.code}
+                                onChange={(e) => handleInputChange('code', e.target.value)}
                             />
                             <Button variant="outline-primary" type="submit" disabled={loading}>
                                 {loading ? <Spinner size="sm" animation="border" /> : <Search size={18} />}
                             </Button>
                             <Button variant="outline-secondary" onClick={handleClear} disabled={loading}>
-                                Limpiar
+                                Clear
                             </Button>
                         </InputGroup>
                     </Col>
                     <Col md={6}>
-                        <Form.Label>Estado</Form.Label>
+                        <Form.Label>Status</Form.Label>
                         <Form.Select
-                            value={searchForm.estado}
-                            onChange={(e) => handleInputChange('estado', e.target.value)}
+                            value={searchForm.status}
+                            onChange={(e) => handleInputChange('status', e.target.value)}
                             disabled={loading}
                         >
-                            <option value="">Todos los estados</option>
-                            <option value="Pendiente">Pendiente</option>
-                            <option value="Listo">Listo</option>
-                            <option value="Entregado">Entregado</option>
-                            <option value="Cancelado">Cancelado</option>
+                            <option value="">All statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
                         </Form.Select>
                     </Col>
                 </Row>
@@ -207,7 +203,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                 {hasSearched && (
                     <div className="mb-2">
                         <h6 className="text-muted mb-3">
-                            Resultados de búsqueda: {searchResults.length} pedido(s) encontrado(s)
+                            Search results: {searchResults.length} order(s) found
                         </h6>
                     </div>
                 )}
@@ -220,7 +216,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                                     <div className="d-flex justify-content-between align-items-start mb-2">
                                         <div className="d-flex align-items-center">
                                             <h6 className="mb-0 me-2">
-                                                Pedido #{order.id}
+                                                Order #{order.id}
                                             </h6>
                                             <span className={`badge bg-${getStatusBadgeColor(order.status)}`}>
                                                 {translateStatus(order.status)}
@@ -276,7 +272,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                 {hasSearched && searchResults.length === 0 && !loading && (
                     <div className="text-center text-muted p-4">
                         <Search size={48} className="mb-2 opacity-50" />
-                        <p>No se encontraron pedidos que coincidan con los criterios de búsqueda.</p>
+                        <p>No orders found matching the search criteria.</p>
                     </div>
                 )}
             </div>
