@@ -67,8 +67,8 @@ const OrderNotifications: React.FC = () => {
     );
 
     const extractTableNumber = (order: Order): string | number | null => {
-        if (order.details && order.details.includes('Mesa')) {
-            const match = order.details.match(/Mesa\s+(\d+)/i);
+        if (order.details && order.details.includes('Table')) {
+            const match = order.details.match(/Table\s+(\d+)/i);
             return match ? match[1] : null;
         }
         return null;
@@ -94,7 +94,7 @@ const OrderNotifications: React.FC = () => {
             const ordersByTable: { [key: string]: number } = {};
 
             orders.forEach(order => {
-                const orderId = order.id || order.codigo || order._id;
+                const orderId = order.id || order.code || order._id;
                 if (!orderId) return;
 
                 const orderStatus = (order.status || order.estado || '').toUpperCase();
@@ -249,18 +249,18 @@ const OrderNotifications: React.FC = () => {
                 }
             }
 
-            Object.entries(ordersByTable).forEach(([mesa, quantity]: [string, number]) => {
-                const mesaKey = `mesa_${mesa}`;
-                const lastMesaNotification = typeof lastOrderStatesRef.current[mesaKey] === 'number' ? lastOrderStatesRef.current[mesaKey] as number : 0;
+            Object.entries(ordersByTable).forEach(([table, quantity]: [string, number]) => {
+                const tableKey = `table_${table}`;
+                const lastTableNotification = typeof lastOrderStatesRef.current[tableKey] === 'number' ? lastOrderStatesRef.current[tableKey] as number : 0;
 
-                if ((quantity > 1) && (currentTimestamp - lastMesaNotification) >= 15 * 60 * 1000) {
+                if ((quantity > 1) && (currentTimestamp - lastTableNotification) >= 15 * 60 * 1000) {
                     addNotification(
-                        `Table ${mesa} has ${quantity} active orders.`,
+                        `Table ${table} has ${quantity} active orders.`,
                         'info',
                         'Active Table'
                     );
 
-                    lastOrderStatesRef.current[mesaKey] = currentTimestamp;
+                    lastOrderStatesRef.current[tableKey] = currentTimestamp;
                 }
             });
 
