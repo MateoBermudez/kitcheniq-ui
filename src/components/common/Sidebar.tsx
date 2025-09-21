@@ -97,7 +97,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 show={showImageModal}
                 onHide={() => setShowImageModal(false)}
                 centered
-                size="lg"
+                size="sm"
             >
                 <Modal.Header closeButton>
                     <Modal.Title>

@@ -1,17 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
 import OrderStatus from './components/OrderStatus/OrderStatus';
+import Login from './components/Login/Login';
 import ToastContainer, {type ToastType} from './components/common/ToastContainer';
 import {type ToastContextType} from './context/toastContext.ts';
 import {ToastProvider} from "./context/ToastContext.tsx";
 import {useToast} from "./components/hooks/useToast.ts";
 import './App.scss';
 
+interface User {
+    id: string;
+    name?: string;
+    type?: string;
+}
+
+interface AuthContextType {
+    user: User | null;
+    token: string | null;
+    login: (token: string) => void;
+    logout: () => void;
+    isAuthenticated: boolean;
+}
+
+function useAuth(): AuthContextType {
+    const [token, setToken] = useState<string | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+
+    useEffect(() => {
+        // Check for stored token on app load
+        const storedToken = localStorage.getItem('authToken');
+        if (storedToken) {
+            setToken(storedToken);
+            setUser({ id: 'current_user' });
+        }
+    }, []);
+
+    const login = (newToken: string) => {
+        setToken(newToken);
+        localStorage.setItem('authToken', newToken);
+        setUser({ id: 'current_user' });
+    };
+
+    const logout = () => {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('authToken');
+    };
+
+    return {
+        user,
+        token,
+        login,
+        logout,
+        isAuthenticated: !!token && !!user
+    };
+}
 
 function AppContent() {
     const [activeSection, setActiveSection] = useState('pedidos');
     const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } : ToastContextType = useToast();
+    const { user, isAuthenticated, login, logout } = useAuth();
 
     const handleToast = (message: string, type = 'info') => {
         switch (type) {
@@ -31,9 +80,36 @@ function AppContent() {
         removeToast(typeof id === 'string' ? Number(id) : id);
     };
 
+    const handleLoginSuccess = (token: string) => {
+        login(token);
+        showSuccess('Login successful! Welcome to KitchenIQ');
+    };
+
+    const handleLogout = () => {
+        logout();
+        showInfo('You have been logged out');
+    };
+
+    // Show login screen if not authenticated
+    if (!isAuthenticated) {
+        return (
+            <>
+                <Login
+                    onLoginSuccess={handleLoginSuccess}
+                    apiBaseUrl="http://localhost:5000/api"
+                />
+                <ToastContainer
+                    toasts={mappedToasts}
+                    onClose={handleRemoveToast}
+                />
+            </>
+        );
+    }
+
+    // Show main app if authenticated
     return (
         <div className="d-flex flex-column vh-100">
-            <TopNavbar />
+            <TopNavbar onLogout={handleLogout} />
             <div className="d-flex flex-grow-1">
                 <Sidebar
                     activeSection={activeSection}
@@ -47,8 +123,8 @@ function AppContent() {
                     {activeSection !== 'pedidos' && (
                         <div className="d-flex align-items-center justify-content-center h-100" style={{backgroundColor : 'white'}}>
                             <div className="text-center text-muted">
-                                <h3>Sección: {activeSection}</h3>
-                                <p>Esta sección estará disponible próximamente</p>
+                                <h3>Section: {activeSection}</h3>
+                                <p>This section will be available soon</p>
                             </div>
                         </div>
                     )}
