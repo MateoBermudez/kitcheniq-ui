@@ -19,9 +19,9 @@ import {createOrder, type OrderData} from '../../service/api';
 
 interface Order {
     data: OrderData;
-    horasolicitud: string;
-    clienteSolicitante: string;
-    mesa: string;
+    requestTime: string;
+    requestingClient: string;
+    table: string;
 }
 
 declare global {
@@ -32,9 +32,9 @@ declare global {
 
 interface MenuItem {
     id: number;
-    nombre: string;
-    precio: number;
-    tipo: string;
+    name: string;
+    price: number;
+    type: string;
 }
 
 interface OrderItem {
@@ -54,12 +54,12 @@ interface OrderStatusProps {
 }
 
 const menuItems: MenuItem[] = [
-    { id: 1, nombre: "Hamburguesa", precio: 10.0, tipo: "PRODUCTO" },
-    { id: 2, nombre: "Papas a la Francesa", precio: 5.0, tipo: "PRODUCTO" },
-    { id: 3, nombre: "Bebida", precio: 2.0, tipo: "PRODUCTO" },
-    { id: 4, nombre: "Hamburguesa + Papas a la Francesa", precio: 15.0, tipo: "COMBO" },
-    { id: 5, nombre: "Hamburguesa + Bebida", precio: 12.0, tipo: "COMBO" },
-    { id: 6, nombre: "2 Hamburguesas + 2 Papas a la Francesa + 2 Bebidas", precio: 34.0, tipo: "COMBO" }
+    { id: 1, name: "Hamburger", price: 10.0, type: "PRODUCT" },
+    { id: 2, name: "French Fries", price: 5.0, type: "PRODUCT" },
+    { id: 3, name: "Drink", price: 2.0, type: "PRODUCT" },
+    { id: 4, name: "Hamburger + French Fries", price: 15.0, type: "COMBO" },
+    { id: 5, name: "Hamburger + Drink", price: 12.0, type: "COMBO" },
+    { id: 6, name: "2 Hamburgers + 2 French Fries + 2 Drinks", price: 34.0, type: "COMBO" }
 ];
 
 const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
@@ -138,31 +138,31 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
 
     const calculateTotal = () => {
         return newOrder.selectedItems.reduce((total, orderItem) =>
-            total + (orderItem.item.precio * orderItem.quantity), 0
+            total + (orderItem.item.price * orderItem.quantity), 0
         );
     };
 
     const generateOrderDetails = () => {
-        let details = `Mesa ${newOrder.tableNumber}\nNombre Cliente: ${newOrder.customerName}`;
+        let details = `Table ${newOrder.tableNumber}\nCustomer Name: ${newOrder.customerName}`;
         if (newOrder.notes.trim()) {
-            details += `\nObservaciones: ${newOrder.notes}`;
+            details += `\nNotes: ${newOrder.notes}`;
         }
         return details;
     };
 
     const handleCreateOrder = () => {
         if (!newOrder.customerName.trim()) {
-            onToast('El nombre del cliente es requerido', 'error');
+            onToast('Customer name is required', 'error');
             return;
         }
 
         if (!newOrder.tableNumber) {
-            onToast('El número de mesa es requerido', 'error');
+            onToast('Table number is required', 'error');
             return;
         }
 
         if (newOrder.selectedItems.length === 0) {
-            onToast('Debe seleccionar al menos un producto o combo', 'error');
+            onToast('Must select at least one product or combo', 'error');
             return;
         }
 
@@ -173,14 +173,14 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
             for (let i = 0; i < orderItem.quantity; i++) {
                 componentsArray.push({
                     id: orderItem.item.id,
-                    type: orderItem.item.tipo === "COMBO" ? "COMBO" : "PRODUCT"
+                    type: orderItem.item.type === "COMBO" ? "COMBO" : "PRODUCT"
                 });
             }
             return componentsArray;
         });
 
         const currentDateTime = new Date();
-        const horaLocal = currentDateTime.toLocaleTimeString('es-ES', {
+        const localTime = currentDateTime.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
             hour12: false
@@ -189,28 +189,28 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
         const orderData = {
             details: orderDetails,
             components: components,
-            horaEntrega: null,
-            clienteSolicitante: newOrder.customerName,
-            mesa: newOrder.tableNumber,
+            deliveryTime: null,
+            requestingClient: newOrder.customerName,
+            table: newOrder.tableNumber,
             id: null,
-            horaSolicitud: null,
+            requestTime: null,
         };
 
-        console.log('Enviando pedido:', orderData);
+        console.log('Sending order:', orderData);
 
         createOrder(orderData)
             .then(response => {
                 const data = response.data || {};
-                const orderConHoraLocal = {
+                const orderWithLocalTime = {
                     ...data,
-                    horasolicitud: horaLocal,
-                    clienteSolicitante: newOrder.customerName,
-                    mesa: newOrder.tableNumber
+                    requestTime: localTime,
+                    requestingClient: newOrder.customerName,
+                    table: newOrder.tableNumber
                 };
 
-                (window as Window).updateOrderTable?.(orderConHoraLocal);
+                (window as Window).updateOrderTable?.(orderWithLocalTime);
 
-                onToast(`Pedido #${data.id} creado a las ${horaLocal} por un total de $${data.price}`, 'success');
+                onToast(`Order #${data.id} created at ${localTime} for a total of $${data.price}`, 'success');
 
                 setNewOrder({
                     customerName: '',
@@ -220,10 +220,10 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 });
             })
             .catch(error => {
-                console.error('Error al crear pedido:', error);
+                console.error('Error creating order:', error);
                 const errorMessage = error.response?.data?.message ||
                     error.message ||
-                    'No se pudo crear el pedido. Inténtalo de nuevo.';
+                    'Could not create order. Please try again.';
                 onToast(errorMessage, 'error');
             })
             .finally(() => {
@@ -237,7 +237,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 <div className="p-3 border rounded-4 shadow mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h2 className="mb-1 rounded-heading">ESTADO DE PEDIDOS</h2>
+                            <h2 className="mb-1 rounded-heading">ORDER STATUS</h2>
                             <small className="text-muted">
                                 <Clock size={14} className="me-1" />
                                 {currentTime.toLocaleTimeString()}
@@ -250,7 +250,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                             style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}
                         >
                             <PlusCircle size={18} className="me-2" />
-                            Crear Pedido
+                            Create Order
                         </Button>
                     </div>
 
@@ -260,7 +260,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                     />
                 </div>
 
-                {/* Sección inferior con búsqueda y notificaciones */}
+                {/* Bottom section with search and notifications */}
                 <Row>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
@@ -275,12 +275,12 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 </Row>
             </Container>
 
-            {/* Modal para crear pedido */}
+            {/* Modal for creating order */}
             <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>
                         <Cart size={20} className="me-2" />
-                        CREAR NUEVO PEDIDO
+                        CREATE NEW ORDER
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -290,14 +290,14 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                 <Form.Group controlId="customerName">
                                     <Form.Label>
                                         <PersonFill size={16} className="me-1" />
-                                        Cliente Solicitante *
+                                        Requesting Customer *
                                     </Form.Label>
                                     <Form.Control
                                         type="text"
                                         name="customerName"
                                         value={newOrder.customerName}
                                         onChange={handleInputChange}
-                                        placeholder="Nombre del cliente"
+                                        placeholder="Customer name"
                                         required
                                     />
                                 </Form.Group>
@@ -306,14 +306,14 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                 <Form.Group controlId="tableNumber">
                                     <Form.Label>
                                         <TableIcon size={16} className="me-1" />
-                                        Número de Mesa *
+                                        Table Number *
                                     </Form.Label>
                                     <Form.Control
                                         type="number"
                                         name="tableNumber"
                                         value={newOrder.tableNumber}
                                         onChange={handleInputChange}
-                                        placeholder="# Mesa"
+                                        placeholder="# Table"
                                         min="1"
                                         required
                                     />
@@ -324,7 +324,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                         <Form.Group className="mb-3" controlId="orderItems">
                             <Form.Label>
                                 <BoxSeam size={16} className="me-1" />
-                                Productos y Combos *
+                                Products and Combos *
                             </Form.Label>
                             <div className="d-flex mb-2">
                                 <Form.Select
@@ -332,18 +332,18 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                     className="me-2"
                                     defaultValue=""
                                 >
-                                    <option value="">Seleccionar producto o combo</option>
-                                    <optgroup label="PRODUCTOS">
-                                        {menuItems.filter(item => item.tipo === "PRODUCTO").map(item => (
+                                    <option value="">Select product or combo</option>
+                                    <optgroup label="PRODUCTS">
+                                        {menuItems.filter(item => item.type === "PRODUCT").map(item => (
                                             <option key={item.id} value={item.id}>
-                                                {item.nombre} - ${item.precio.toFixed(1)}
+                                                {item.name} - ${item.price.toFixed(1)}
                                             </option>
                                         ))}
                                     </optgroup>
                                     <optgroup label="COMBOS">
-                                        {menuItems.filter(item => item.tipo === "COMBO").map(item => (
+                                        {menuItems.filter(item => item.type === "COMBO").map(item => (
                                             <option key={item.id} value={item.id}>
-                                                {item.nombre} - ${item.precio.toFixed(1)}
+                                                {item.name} - ${item.price.toFixed(1)}
                                             </option>
                                         ))}
                                     </optgroup>
@@ -358,14 +358,14 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                                 <div key={index} className="d-flex justify-content-between align-items-center border-bottom py-2">
                                                     <div className="flex-grow-1">
                                                         <div className="d-flex align-items-center">
-                                                            <strong>{orderItem.item.nombre}</strong>
-                                                            {orderItem.item.tipo === "COMBO" && (
+                                                            <strong>{orderItem.item.name}</strong>
+                                                            {orderItem.item.type === "COMBO" && (
                                                                 <span className="badge bg-success ms-2">Combo</span>
                                                             )}
                                                         </div>
                                                         <small className="text-muted">
                                                             <CurrencyDollar size={12} />
-                                                            {orderItem.item.precio.toFixed(1)} c/u
+                                                            {orderItem.item.price.toFixed(1)} each
                                                         </small>
                                                     </div>
                                                     <div className="d-flex align-items-center">
@@ -379,7 +379,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                                         />
                                                         <span className="me-2 fw-bold">
                                                             <CurrencyDollar size={14} />
-                                                            {(orderItem.item.precio * orderItem.quantity).toFixed(1)}
+                                                            {(orderItem.item.price * orderItem.quantity).toFixed(1)}
                                                         </span>
                                                         <Button
                                                             variant="outline-danger"
@@ -404,7 +404,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                 ) : (
                                     <div className="text-center text-muted p-3">
                                         <Cart size={24} className="mb-2" />
-                                        <div>No hay productos o combos seleccionados</div>
+                                        <div>No products or combos selected</div>
                                     </div>
                                 )}
                             </div>
@@ -413,7 +413,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                         <Form.Group className="mb-3" controlId="notes">
                             <Form.Label>
                                 <CardText size={16} className="me-1" />
-                                Observaciones
+                                Notes
                             </Form.Label>
                             <Form.Control
                                 as="textarea"
@@ -421,7 +421,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                 name="notes"
                                 value={newOrder.notes}
                                 onChange={handleInputChange}
-                                placeholder="Instrucciones especiales para el pedido"
+                                placeholder="Special instructions for the order"
                             />
                         </Form.Group>
                     </Form>
@@ -429,7 +429,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
                         <XCircle size={16} className="me-1" />
-                        Cancelar
+                        Cancel
                     </Button>
                     <Button
                         variant="primary"
@@ -438,7 +438,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                         disabled={!newOrder.customerName || !newOrder.tableNumber || newOrder.selectedItems.length === 0}
                     >
                         <CheckCircle size={16} className="me-1" />
-                        Crear Pedido - <CurrencyDollar size={16} />{calculateTotal().toFixed(1)}
+                        Create Order - <CurrencyDollar size={16} />{calculateTotal().toFixed(1)}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -447,4 +447,3 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
 };
 
 export default OrderStatus;
-

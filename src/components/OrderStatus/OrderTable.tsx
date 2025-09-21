@@ -10,19 +10,21 @@ import {
     Clipboard,
     Trash
 } from 'react-bootstrap-icons';
-import {getAllOrders, updateOrderStatus, deleteOrder, type OrderData, type OrderComponentData} from '../../service/api';
+import {getAllOrders, updateOrderStatus, deleteOrder, type OrderComponentData} from '../../service/api';
 
-// Types for the order table
-interface OrderTableRow extends Omit<OrderData, 'details'> {
-    details: string;
-    codigo: string;
-    estado: string;
-    horasolicitud: string | null;
-    horaEntrega: string | null;
-    clienteSolicitante: string;
-    mesa: string;
+// Types for the order table - completely in English
+interface OrderTableRow {
+    id: number | null;
+    code: string;
+    status: string;
+    requestTime: string | null;
+    deliveryTime: string | null;
+    requestingClient: string;
+    table: string;
     items: OrderComponentData[];
+    details: string;
     originalStatus?: string;
+    components: OrderComponentData[];
 }
 
 interface OrderTableProps {
@@ -49,41 +51,47 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         return saved ? JSON.parse(saved) : {};
     });
 
-    const mapStatusToSpanish = useCallback((status: string): string => {
+    const mapStatusToEnglish = useCallback((status: string): string => {
         const statusMap: Record<string, string> = {
-            'PENDING': 'Pendiente',
-            'READY': 'Listo',
-            'DELIVERED': 'Entregado',
-            'CANCELLED': 'Cancelado',
-            'PREPARING': 'Pendiente',
-            'COMPLETED': 'Entregado',
-            'IN_PROGRESS': 'Pendiente'
+            'PENDING': 'Pending',
+            'READY': 'Ready',
+            'DELIVERED': 'Delivered',
+            'CANCELLED': 'Cancelled',
+            'PREPARING': 'Pending',
+            'COMPLETED': 'Delivered',
+            'IN_PROGRESS': 'Pending'
         };
-        return statusMap[status.toUpperCase()] ?? status ?? 'Pendiente';
+        return statusMap[status.toUpperCase()] ?? status ?? 'Pending';
     }, []);
-
 
     const mapOrderData = useCallback((backendOrder: Record<string, unknown>): OrderTableRow => {
         const orderId = typeof backendOrder.id === 'number' ? backendOrder.id :
             typeof backendOrder._id === 'number' ? backendOrder._id : null;
-        const horasolicitud = orderId !== null ? (localOrderTimes[String(orderId)] || 'N/A') : 'N/A';
-        const horaEntrega = orderId !== null ? (localDeliveryTimes[String(orderId)] || null) : null;
+
+        // Use backend requestTime directly
+        const backendRequestTime = typeof backendOrder.requestTime === 'string' ? backendOrder.requestTime : null;
+        const localRequestTime = orderId !== null ? localOrderTimes[String(orderId)] : null;
+        const requestTime = localRequestTime || backendRequestTime || 'N/A';
+
+        // Use backend deliveryTime directly
+        const backendDeliveryTime = typeof backendOrder.deliveryTime === 'string' ? backendOrder.deliveryTime : null;
+        const localDeliveryTime = orderId !== null ? localDeliveryTimes[String(orderId)] : null;
+        const deliveryTime = localDeliveryTime || backendDeliveryTime;
+
         return {
             id: orderId,
-            codigo: typeof backendOrder.codigo === 'string' ? backendOrder.codigo : `ORD-${orderId ?? 'XXX'}`,
-            clienteSolicitante: typeof backendOrder.clienteSolicitante === 'string' ? backendOrder.clienteSolicitante : 'Cliente',
-            mesa: typeof backendOrder.mesa === 'string' ? backendOrder.mesa : 'N/A',
-            estado: mapStatusToSpanish(typeof backendOrder.status === 'string' ? backendOrder.status : 'PENDING'),
-            horasolicitud,
-            horaEntrega,
+            code: typeof backendOrder.code === 'string' ? backendOrder.code : `ORD-${orderId ?? 'XXX'}`,
+            requestingClient: typeof backendOrder.requestingClient === 'string' ? backendOrder.requestingClient : 'Customer',
+            table: typeof backendOrder.table === 'string' ? backendOrder.table : 'N/A',
+            status: mapStatusToEnglish(typeof backendOrder.status === 'string' ? backendOrder.status : 'PENDING'),
+            requestTime,
+            deliveryTime,
             items: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
             details: typeof backendOrder.details === 'string' ? backendOrder.details : '',
             originalStatus: typeof backendOrder.originalStatus === 'string' ? backendOrder.originalStatus : undefined,
-            horaSolicitud: typeof backendOrder.horaSolicitud === 'string' ? backendOrder.horaSolicitud : null,
             components: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
         };
-    }, [localOrderTimes, localDeliveryTimes, mapStatusToSpanish]);
-
+    }, [localOrderTimes, localDeliveryTimes, mapStatusToEnglish]);
 
     const loadOrders = useCallback(async () => {
         try {
@@ -91,7 +99,8 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             setError(null);
             const response = await getAllOrders();
             const ordersData = response.data ?? response;
-            let processedOrders: Partial<OrderTableRow>[] = [];
+            let processedOrders: Record<string, unknown>[] = [];
+
             if (Array.isArray(ordersData)) {
                 processedOrders = ordersData;
             } else if (ordersData.data && Array.isArray(ordersData.data)) {
@@ -105,14 +114,15 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             } else if (ordersData.items && Array.isArray(ordersData.items)) {
                 processedOrders = ordersData.items;
             } else if (typeof ordersData === 'object') {
-                if ('id' in ordersData || '_id' in ordersData || 'codigo' in ordersData) {
+                if ('id' in ordersData || '_id' in ordersData || 'code' in ordersData) {
                     processedOrders = [ordersData];
                 }
             }
+
             const mappedOrders: OrderTableRow[] = processedOrders.map(mapOrderData);
             setOrders(mappedOrders);
         } catch (err) {
-            let errorMessage = 'Error al cargar los pedidos';
+            let errorMessage = 'Error loading orders';
             if (err instanceof Error) {
                 errorMessage = err.message || errorMessage;
             }
@@ -123,17 +133,15 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         }
     }, [mapOrderData, onToast]);
 
-
-
     useEffect(() => {
         window.updateOrderTable = (newOrder) => {
             setLocalOrderTimes((currentTimes: Record<string, string>) => {
-                if (!newOrder || !newOrder.data || !newOrder.data.id || !newOrder.horasolicitud) {
+                if (!newOrder || !newOrder.data || !newOrder.data.id || !newOrder.requestTime) {
                     return currentTimes;
                 }
                 const newTimes = {
                     ...currentTimes,
-                    [newOrder.data.id]: newOrder.horasolicitud
+                    [newOrder.data.id]: newOrder.requestTime
                 };
                 localStorage.setItem('orderCreationTimes', JSON.stringify(newTimes));
                 return newTimes;
@@ -160,25 +168,25 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         return () => clearInterval(intervalId);
     }, [loadOrders]);
 
-    // Corrects the statusMap indexing
-    const mapStatusToEnglish = useCallback((spanishStatus: string): string => {
+    // Maps English status to backend format
+    const mapStatusToBackend = useCallback((englishStatus: string): string => {
         const statusMap: Record<string, string> = {
-            'Pendiente': 'PENDING',
-            'Listo': 'READY',
-            'Entregado': 'DELIVERED',
-            'Cancelado': 'CANCELLED'
+            'Pending': 'PENDING',
+            'Ready': 'READY',
+            'Delivered': 'DELIVERED',
+            'Cancelled': 'CANCELLED'
         };
-        return statusMap[spanishStatus] ?? spanishStatus;
+        return statusMap[englishStatus] ?? englishStatus;
     }, []);
 
     const handleRefresh = async () => {
         try {
             setRefreshing(true);
             await loadOrders();
-            onToast('Pedidos actualizados correctamente', 'success');
+            onToast('Orders updated successfully', 'success');
         } catch (err) {
             console.error('Error refreshing orders:', err);
-            onToast('Error al actualizar los pedidos', 'error');
+            onToast('Error updating orders', 'error');
         } finally {
             setRefreshing(false);
         }
@@ -187,43 +195,43 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     const filteredOrders = React.useMemo(() => {
         const filtered = searchTerm
             ? orders.filter(order =>
-                order.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                order.clienteSolicitante?.toLowerCase().includes(searchTerm.toLowerCase())
+                order.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                order.requestingClient?.toLowerCase().includes(searchTerm.toLowerCase())
             )
             : [...orders];
 
         filtered.sort((a, b) => {
-            if (a.estado === 'Listo' && b.estado !== 'Listo') return -1;
-            if (a.estado !== 'Listo' && b.estado === 'Listo') return 1;
-            if (a.estado === 'Entregado' && b.estado !== 'Entregado') return 1;
-            if (a.estado !== 'Entregado' && b.estado === 'Entregado') return -1;
+            if (a.status === 'Ready' && b.status !== 'Ready') return -1;
+            if (a.status !== 'Ready' && b.status === 'Ready') return 1;
+            if (a.status === 'Delivered' && b.status !== 'Delivered') return 1;
+            if (a.status !== 'Delivered' && b.status === 'Delivered') return -1;
             return 0;
         });
 
         return filtered;
     }, [orders, searchTerm]);
 
-    const getBadgeStyle = useCallback((estado: string): React.CSSProperties => {
-        switch (estado?.toLowerCase()) {
-            case 'pendiente':
+    const getBadgeStyle = useCallback((status: string): React.CSSProperties => {
+        switch (status?.toLowerCase()) {
+            case 'pending':
                 return {
                     backgroundColor: '#feffd4',
                     border: '1px solid #c2c838',
                     color: '#000000'
                 };
-            case 'listo':
+            case 'ready':
                 return {
                     backgroundColor: '#D1FFD7',
                     border: '1px solid #A3C6B0',
                     color: '#000000'
                 };
-            case 'entregado':
+            case 'delivered':
                 return {
                     backgroundColor: '#a7cdff',
                     border: '1px solid #7BB3FFFF',
                     color: '#000000'
                 };
-            case 'cancelado':
+            case 'cancelled':
                 return {
                     backgroundColor: '#F8D7DA',
                     border: '1px solid #EA868F',
@@ -238,26 +246,26 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         }
     }, []);
 
-    const handleStatusChange = async (codigo: string, nuevoEstado: string) => {
+    const handleStatusChange = async (code: string, newStatus: string) => {
         try {
-            setUpdatingOrder(codigo);
-            const order = orders.find(o => o.codigo === codigo);
+            setUpdatingOrder(code);
+            const order = orders.find(o => o.code === code);
             if (!order) {
-                onToast('Pedido no encontrado', 'error');
+                onToast('Order not found', 'error');
                 setUpdatingOrder(null);
                 return;
             }
-            const backendStatus = mapStatusToEnglish(nuevoEstado);
-            let horaEntregaActual = null;
-            if (nuevoEstado === 'Entregado' && order.id !== null) {
-                horaEntregaActual = new Date().toLocaleTimeString('es-ES', {
+            const backendStatus = mapStatusToBackend(newStatus);
+            let currentDeliveryTime = null;
+            if (newStatus === 'Delivered' && order.id !== null) {
+                currentDeliveryTime = new Date().toLocaleTimeString('en-US', {
                     hour: '2-digit',
                     minute: '2-digit',
                     hour12: false
                 });
                 const newDeliveryTimes = {
                     ...localDeliveryTimes,
-                    [order.id]: horaEntregaActual
+                    [order.id]: currentDeliveryTime
                 };
                 setLocalDeliveryTimes(newDeliveryTimes);
                 localStorage.setItem('orderDeliveryTimes', JSON.stringify(newDeliveryTimes));
@@ -265,20 +273,20 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             await updateOrderStatus(Number(order.id), backendStatus);
             setOrders(prevOrders =>
                 prevOrders.map(o =>
-                    o.codigo === codigo
+                    o.code === code
                         ? {
                             ...o,
-                            estado: nuevoEstado,
+                            status: newStatus,
                             originalStatus: backendStatus,
-                            horaEntrega: nuevoEstado === 'Entregado' ? horaEntregaActual : o.horaEntrega
+                            deliveryTime: newStatus === 'Delivered' ? currentDeliveryTime : o.deliveryTime
                         }
                         : o
                 )
             );
-            onToast(`Pedido ${codigo} actualizado a ${nuevoEstado}`, 'success');
+            onToast(`Order ${code} updated to ${newStatus}`, 'success');
         } catch (err) {
             console.error('Error updating order status:', err);
-            let errorMessage = `Error al actualizar el pedido ${codigo}`;
+            let errorMessage = `Error updating order ${code}`;
             if (err instanceof Error) {
                 errorMessage = err.message || errorMessage;
             }
@@ -296,11 +304,11 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     const confirmDelete = async () => {
         if (!orderToDelete) return;
         try {
-            setDeletingOrder(orderToDelete.codigo);
+            setDeletingOrder(orderToDelete.code);
             setShowDeleteModal(false);
             await deleteOrder(Number(orderToDelete.id));
             setOrders(prevOrders =>
-                prevOrders.filter(o => o.codigo !== orderToDelete.codigo)
+                prevOrders.filter(o => o.code !== orderToDelete.code)
             );
             const newTimes = { ...localOrderTimes };
             if (orderToDelete.id !== null) {
@@ -314,9 +322,9 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             }
             setLocalDeliveryTimes(newDeliveryTimes);
             localStorage.setItem('orderDeliveryTimes', JSON.stringify(newDeliveryTimes));
-            onToast(`Pedido ${orderToDelete.codigo} eliminado correctamente`, 'success');
+            onToast(`Order ${orderToDelete.code} deleted successfully`, 'success');
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : `Error al eliminar el pedido ${orderToDelete.codigo}`;
+            const errorMessage = err instanceof Error ? err.message : `Error deleting order ${orderToDelete.code}`;
             onToast(errorMessage, 'error');
         } finally {
             setDeletingOrder(null);
@@ -341,7 +349,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             <div className="bg-white rounded shadow-sm">
                 <div className="p-5 text-center">
                     <Spinner animation="border" variant="primary" />
-                    <div className="mt-2 text-muted">Cargando pedidos...</div>
+                    <div className="mt-2 text-muted">Loading orders...</div>
                 </div>
             </div>
         );
@@ -357,11 +365,11 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                 <strong>Error:</strong> {error}
                                 <br />
                                 <small className="text-muted">
-                                    Verifica que el servidor esté funcionando correctamente
+                                    Check that the server is running correctly
                                 </small>
                             </div>
                             <Button variant="outline-danger" size="sm" onClick={loadOrders}>
-                                <ArrowClockwise size={16} className="me-1" /> Reintentar
+                                <ArrowClockwise size={16} className="me-1" /> Retry
                             </Button>
                         </div>
                     </Alert>
@@ -376,7 +384,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 <div className="p-3 border-bottom bg-white">
                     <div className="d-flex justify-content-between align-items-center">
                         <h6 className="mb-0 text-muted">
-                            Total de pedidos: <span className="text-dark">{filteredOrders.length}</span>
+                            Total orders: <span className="text-dark">{filteredOrders.length}</span>
                         </h6>
                         <Button
                             style={buttonStyle}
@@ -389,11 +397,11 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                             {refreshing ? (
                                 <>
                                     <Spinner as="span" animation="border" size="sm" className="me-1" />
-                                    Actualizando...
+                                    Updating...
                                 </>
                             ) : (
                                 <>
-                                    <ArrowClockwise size={16} className="me-1" /> Actualizar
+                                    <ArrowClockwise size={16} className="me-1" /> Refresh
                                 </>
                             )}
                         </Button>
@@ -404,87 +412,87 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                     <Table responsive hover className="mb-0">
                         <thead className="sticky-top">
                         <tr>
-                            <th>Código</th>
-                            <th>Cliente</th>
-                            <th>Mesa</th>
-                            <th>Estado</th>
-                            <th>Hora Solicitud</th>
-                            <th>Hora Entrega</th>
-                            <th>Acciones</th>
+                            <th>Code</th>
+                            <th>Customer</th>
+                            <th>Table</th>
+                            <th>Status</th>
+                            <th>Request Time</th>
+                            <th>Delivery Time</th>
+                            <th>Actions</th>
                         </tr>
                         </thead>
                         <tbody>
                         {filteredOrders.map((order, index) => (
-                            <tr key={order.codigo || order.id || index}>
+                            <tr key={order.code || order.id || index}>
                                 <td>
-                                    <strong className="text-black">{order.codigo || 'N/A'}</strong>
+                                    <strong className="text-black">{order.code || 'N/A'}</strong>
                                 </td>
                                 <td>
-                                    <div>{order.clienteSolicitante}</div>
+                                    <div>{order.requestingClient}</div>
                                 </td>
                                 <td>
                                     <Badge bg="light" text="dark">
-                                        {order.mesa && order.mesa !== 'N/A' ? `Mesa ${order.mesa}` : 'Para llevar'}
+                                        {order.table && order.table !== 'N/A' ? `Table ${order.table}` : 'Takeout'}
                                     </Badge>
                                 </td>
                                 <td>
                                     <span
                                         className="badge"
-                                        style={getBadgeStyle(order.estado)}
+                                        style={getBadgeStyle(order.status)}
                                     >
-                                        {order.estado || 'N/A'}
+                                        {order.status || 'N/A'}
                                     </span>
                                 </td>
                                 <td>
-                                    <small className="text-muted">{order.horasolicitud || 'N/A'}</small>
+                                    <small className="text-muted">{order.requestTime || 'N/A'}</small>
                                 </td>
                                 <td>
-                                    <small className="text-muted">{order.horaEntrega || '--:--'}</small>
+                                    <small className="text-muted">{order.deliveryTime || '--:--'}</small>
                                 </td>
                                 <td>
                                     <Dropdown>
                                         <Dropdown.Toggle
                                             variant="outline-secondary"
                                             size="sm"
-                                            disabled={updatingOrder === order.codigo || deletingOrder === order.codigo}
+                                            disabled={updatingOrder === order.code || deletingOrder === order.code}
                                         >
-                                            {(updatingOrder === order.codigo || deletingOrder === order.codigo) ?
+                                            {(updatingOrder === order.code || deletingOrder === order.code) ?
                                                 <HourglassSplit size={16} /> :
                                                 <ThreeDots size={16} />}
                                         </Dropdown.Toggle>
                                         <Dropdown.Menu>
                                             <Dropdown.Item
-                                                onClick={() => handleStatusChange(order.codigo, 'Pendiente')}
-                                                disabled={order.estado === 'Pendiente'}
+                                                onClick={() => handleStatusChange(order.code, 'Pending')}
+                                                disabled={order.status === 'Pending'}
                                             >
-                                                <HourglassSplit size={16} className="me-2" /> Marcar como Pendiente
+                                                <HourglassSplit size={16} className="me-2" /> Mark as Pending
                                             </Dropdown.Item>
                                             <Dropdown.Item
-                                                onClick={() => handleStatusChange(order.codigo, 'Listo')}
-                                                disabled={order.estado === 'Listo'}
+                                                onClick={() => handleStatusChange(order.code, 'Ready')}
+                                                disabled={order.status === 'Ready'}
                                             >
-                                                <CheckCircle size={16} className="me-2" /> Marcar como Listo
+                                                <CheckCircle size={16} className="me-2" /> Mark as Ready
                                             </Dropdown.Item>
                                             <Dropdown.Item
-                                                onClick={() => handleStatusChange(order.codigo, 'Entregado')}
-                                                disabled={order.estado === 'Entregado'}
+                                                onClick={() => handleStatusChange(order.code, 'Delivered')}
+                                                disabled={order.status === 'Delivered'}
                                             >
-                                                <Box size={16} className="me-2" /> Marcar como Entregado
+                                                <Box size={16} className="me-2" /> Mark as Delivered
                                             </Dropdown.Item>
                                             <Dropdown.Divider />
                                             <Dropdown.Item
-                                                onClick={() => handleStatusChange(order.codigo, 'Cancelado')}
+                                                onClick={() => handleStatusChange(order.code, 'Cancelled')}
                                                 className="text-warning"
-                                                disabled={order.estado === 'Cancelado'}
+                                                disabled={order.status === 'Cancelled'}
                                             >
-                                                <XCircle size={16} className="me-2" /> Cancelar Pedido
+                                                <XCircle size={16} className="me-2" /> Cancel Order
                                             </Dropdown.Item>
                                             <Dropdown.Item
                                                 onClick={() => handleDeleteClick(order)}
                                                 className="text-danger"
-                                                disabled={deletingOrder === order.codigo}
+                                                disabled={deletingOrder === order.code}
                                             >
-                                                <Trash size={16} className="me-2" /> Eliminar Pedido
+                                                <Trash size={16} className="me-2" /> Delete Order
                                             </Dropdown.Item>
                                         </Dropdown.Menu>
                                     </Dropdown>
@@ -500,22 +508,21 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                         <div className="mb-2">
                             <Clipboard size={24} />
                         </div>
-                        <div>No se encontraron pedidos</div>
+                        <div>No orders found</div>
                         {orders.length > 0 && (
                             <small>
-                                Hay {orders.length} pedidos en total, pero ninguno coincide con el filtro actual
+                                There are {orders.length} orders in total, but none match the current filter
                             </small>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* Confirmation modal for deletion */}
             <Modal show={showDeleteModal} onHide={cancelDelete} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>
                         <Trash size={20} className="me-2 text-danger" />
-                        CONFIRMAR ELIMINACION
+                        CONFIRM DELETION
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -523,30 +530,31 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                         <div className="mb-3">
                             <Trash size={48} className="text-danger" />
                         </div>
-                        <h5>¿Estás seguro de que deseas eliminar este pedido?</h5>
+                        <h5>Are you sure you want to delete this order?</h5>
                         {orderToDelete && (
                             <div className="mt-3 p-3 bg-light rounded">
-                                <strong>Código:</strong> {orderToDelete.codigo}<br />
-                                <strong>Cliente:</strong> {orderToDelete.clienteSolicitante}<br />
-                                <strong>Estado:</strong> {orderToDelete.estado}
+                                <strong>Code:</strong> {orderToDelete.code}<br />
+                                <strong>Customer:</strong> {orderToDelete.requestingClient}<br />
+                                <strong>Status:</strong> {orderToDelete.status}
                             </div>
                         )}
                         <div className="mt-3 text-muted">
-                            <small>Esta acción no se puede deshacer.</small>
+                            <small>This action cannot be undone.</small>
                         </div>
                     </div>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={cancelDelete}>
-                        Cancelar
+                        Cancel
                     </Button>
                     <Button variant="danger" onClick={confirmDelete}>
                         <Trash size={16} className="me-1" />
-                        Eliminar Pedido
+                        Delete Order
                     </Button>
                 </Modal.Footer>
             </Modal>
         </>
     );
 };
+
 export default OrderTable;

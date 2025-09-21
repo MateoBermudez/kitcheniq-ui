@@ -13,11 +13,12 @@ export interface OrderData {
     id: number | null;
     details: string;
     components: OrderComponentData[];
-    horaEntrega: string | null;
-    horaSolicitud: string | null;
-    clienteSolicitante: string;
-    mesa: string;
+    deliveryTime: string | null;
+    requestTime: string | null;
+    requestingClient: string;
+    table: string;
 }
+
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
