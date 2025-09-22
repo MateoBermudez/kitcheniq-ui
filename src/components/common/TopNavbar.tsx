@@ -49,6 +49,5 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
         </Navbar>
     );
 };
-};
 
 export default TopNavbar;

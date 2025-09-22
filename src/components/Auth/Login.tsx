@@ -16,7 +16,7 @@ interface LoginProps {
     apiBaseUrl?: string;
 }
 
-const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://localhost:5000/api'}) => {
+const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://localhost:5000/kitcheniq/api/v1/auth/login'}) => {
     const [formData, setFormData] = useState<LoginRequest>({
         userId: '',
         password: ''
@@ -36,13 +36,13 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
         if (error) setError('');
     };
 
-    const handleSubmit = async (e: React.MouseEvent | React.KeyboardEvent) => {
+    const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLInputElement>) => {
         e.preventDefault();
         setIsLoading(true);
         setError('');
 
         try {
-            const response = await fetch(`${apiBaseUrl}/auth/login`, {
+            const response = await fetch(apiBaseUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -119,7 +119,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                                     onChange={handleInputChange}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && isFormValid && !isLoading) {
-                                            handleSubmit(e as any);
+                                            handleSubmit(e);
                                         }
                                     }}
                                     className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
@@ -146,7 +146,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                                     onChange={handleInputChange}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && isFormValid && !isLoading) {
-                                            handleSubmit(e as any);
+                                            handleSubmit(e);
                                         }
                                     }}
                                     className="pl-10 pr-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
@@ -169,7 +169,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                         {/* Submit Button */}
                         <button
                             type="button"
-                            onClick={(e) => handleSubmit(e as any)}
+                            onClick={(e) => handleSubmit(e)}
                             disabled={!isFormValid || isLoading}
                             className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
                                 isFormValid && !isLoading

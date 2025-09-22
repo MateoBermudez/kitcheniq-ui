@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
 import OrderStatus from './components/OrderStatus/OrderStatus';
-import Login from './components/Login/Login';
+import Login from './components/Auth/Login';
 import ToastContainer, {type ToastType} from './components/common/ToastContainer';
 import {type ToastContextType} from './context/toastContext.ts';
 import {ToastProvider} from "./context/ToastContext.tsx";
@@ -96,7 +96,7 @@ function AppContent() {
             <>
                 <Login
                     onLoginSuccess={handleLoginSuccess}
-                    apiBaseUrl="http://localhost:5000/api"
+                    apiBaseUrl="http://localhost:5000/kitcheniq/api/v1/auth/login"
                 />
                 <ToastContainer
                     toasts={mappedToasts}
