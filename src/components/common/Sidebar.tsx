@@ -56,7 +56,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 onClick={() => onSectionChange && onSectionChange(item.key)}
                 style={{
                     cursor: 'pointer',
-                    backgroundColor: (activeSection === item.key || item.active) ? '#B1E5FF' : 'transparent'
+                    backgroundColor: (activeSection === item.key || item.active) ? '#86e5ff' : 'transparent'
                 }}
             >
                 <span className="me-2">{item.icon}</span>
@@ -69,13 +69,13 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
         <div className="border-end d-flex flex-column"
              style={{
                  width: '250px',
-                 backgroundColor: '#E3F2FD',
+                 backgroundColor: '#C5EFFFFF',
                  height: '100vh',
                  position: 'sticky',
                  top: 0,
                  overflowY: 'auto'
              }}>
-            <div className="p-4 border-bottom rounded-bottom-4" style={{backgroundColor: '#B1E5FF'}}>
+            <div className="p-4 border-bottom rounded-bottom-4" style={{backgroundColor: '#86e5ff'}}>
                 <div className="d-flex align-items-center py-2">
                     <div className="rounded-circle d-flex align-items-center justify-content-center me-3"
                          style={{ width: '50px', height: '50px', overflow: 'hidden', cursor: 'pointer' }}

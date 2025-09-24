@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, User, Lock, AlertCircle } from 'lucide-react';
+import '../../App.scss';
 
 // Types for requests and responses
 interface LoginRequest {
@@ -21,6 +21,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
         userId: '',
         password: ''
     });
+
 
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -78,126 +79,88 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
     const isFormValid = formData.userId.trim() !== '' && formData.password.trim() !== '';
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full space-y-8">
-                {/* Header */}
-                <div className="text-center">
-                    <div className="mx-auto h-12 w-12 bg-orange-500 rounded-full flex items-center justify-center mb-4">
-                        <User className="h-6 w-6 text-white" />
+        <div className="container-fluid vh-100 p-0" style={{backgroundColor: '#B4E6FF'}}>
+            <div className="row h-100 g-0">
+                <div className="d-none d-lg-flex col-lg-6 align-items-center justify-content-center">
+                    <div>
+                        <img
+                            src="/LogoCompleto.png"
+                            alt="LogoKitchen"
+                            className="img-fluid"
+                            style={{maxWidth: '400px'}}
+                        />
                     </div>
-                    <h2 className="text-3xl font-bold text-gray-900">KitchenIQ</h2>
-                    <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
                 </div>
-
-                {/* Form */}
-                <div className="mt-8 space-y-6">
-                    <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-
-                        {/* Error Message */}
-                        {error && (
-                            <div className="bg-red-50 border border-red-200 rounded-md p-3 flex items-center space-x-2">
-                                <AlertCircle className="h-4 w-4 text-red-500" />
-                                <span className="text-sm text-red-700">{error}</span>
-                            </div>
-                        )}
-
-                        {/* User ID Field */}
-                        <div className="space-y-1">
-                            <label htmlFor="userId" className="text-sm font-medium text-gray-700">
-                                User ID
-                            </label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <User className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <input
-                                    id="userId"
-                                    name="userId"
-                                    type="text"
-                                    required
-                                    value={formData.userId}
-                                    onChange={handleInputChange}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && isFormValid && !isLoading) {
-                                            handleSubmit(e);
-                                        }
-                                    }}
-                                    className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                                    placeholder="Enter your user ID"
-                                />
-                            </div>
+                <div className="col-12 col-lg-6 d-flex align-items-center justify-content-center">
+                    <div className="bg-light h-100 w-75 d-flex flex-column justify-content-center px-4 py-5 position-relative" style={{zIndex: 2}}>
+                        {error && <div className="alert alert-danger mb-3">{error}</div>}
+                        <div>
+                            <label className="form-label fs-5 fw-medium">Username</label>
+                            <input
+                                type="text"
+                                name="userId"
+                                value={formData.userId}
+                                onChange={handleInputChange}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+                                className="w-100 border border-secondary rounded p-2 bg-transparent"
+                                placeholder="Enter your username"
+                            />
                         </div>
-
-                        {/* Password Field */}
-                        <div className="space-y-1">
-                            <label htmlFor="password" className="text-sm font-medium text-gray-700">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Lock className="h-4 w-4 text-gray-400" />
-                                </div>
+                        <div className="mt-3">
+                            <label className="form-label fs-5 fw-medium">Password</label>
+                            <div className="position-relative">
                                 <input
-                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     name="password"
-                                    type={showPassword ? "text" : "password"}
-                                    required
                                     value={formData.password}
                                     onChange={handleInputChange}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && isFormValid && !isLoading) {
-                                            handleSubmit(e);
-                                        }
-                                    }}
-                                    className="pl-10 pr-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+                                    className="w-100 border border-secondary rounded p-2 bg-transparent"
                                     placeholder="Enter your password"
                                 />
                                 <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
                                     onClick={() => setShowPassword(!showPassword)}
+                                    className="btn btn-sm position-absolute end-0 top-50 translate-middle-y me-2"
+                                    style={{border: 'none', background: 'transparent'}}
                                 >
-                                    {showPassword ? (
-                                        <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                                    ) : (
-                                        <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                                    )}
+                                    <i className={showPassword ? 'bi bi-eye-slash' : 'bi bi-eye'}></i>
                                 </button>
                             </div>
                         </div>
-
-                        {/* Submit Button */}
-                        <button
-                            type="button"
-                            onClick={(e) => handleSubmit(e)}
-                            disabled={!isFormValid || isLoading}
-                            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                                isFormValid && !isLoading
-                                    ? 'bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500'
-                                    : 'bg-gray-400 cursor-not-allowed'
-                            } transition duration-150 ease-in-out`}
-                        >
-                            {isLoading ? (
-                                <div className="flex items-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Signing in...
-                                </div>
-                            ) : (
-                                'Sign In'
-                            )}
-                        </button>
+                        <div className="mt-4 d-flex flex-column mb-3">
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={!isFormValid || isLoading}
+                                className="py-2 rounded-2"
+                                style={{backgroundColor: '#D1DBFF', transition: 'transform 0.075s ease-in-out'}}
+                                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+                                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            >
+                                {isLoading ? 'Signing in...' : 'Sign in'}
+                            </button>
+                        </div>
                     </div>
-
-                    {/* Footer */}
-                    <div className="text-center">
-                        <p className="text-xs text-gray-500">
-                            Having trouble signing in? Contact your system administrator
-                        </p>
-                    </div>
+                    <div
+                        className="position-absolute"
+                        style={{
+                            bottom: '0',
+                            right: '0',
+                            width: '0',
+                            height: '0',
+                            borderLeft: '800px solid transparent',
+                            borderBottom: '400px solid #38B0F0',
+                            zIndex: 1
+                        }}
+                    />
                 </div>
             </div>
         </div>
+
     );
 };
+
 
 export default Login;

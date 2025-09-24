@@ -1,6 +1,6 @@
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
-import logo from '../../assets/letras.png';
+import logo from '../../assets/LogoBlack.png';
 
 interface TopNavbarProps {
     onLogout?: () => void;
@@ -21,7 +21,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
     };
 
     return (
-        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#B1E5FF' }}>
+        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#86E5FF' }}>
             <Container fluid>
                 <div className="ms-2">
                     <Navbar.Brand href="/">

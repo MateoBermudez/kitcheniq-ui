@@ -21,19 +21,33 @@ interface AuthContextType {
     login: (token: string) => void;
     logout: () => void;
     isAuthenticated: boolean;
+    isLoading: boolean;
 }
 
 function useAuth(): AuthContextType {
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true); // Agregamos estado de carga
 
     useEffect(() => {
         // Check for stored token on app load
-        const storedToken = localStorage.getItem('authToken');
-        if (storedToken) {
-            setToken(storedToken);
-            setUser({ id: 'current_user' });
-        }
+        const checkStoredAuth = async () => {
+            try {
+                const storedToken = localStorage.getItem('authToken');
+                if (storedToken) {
+                    // Aquí podrías validar el token con el servidor si es necesario
+                    setToken(storedToken);
+                    setUser({ id: 'current_user' });
+                }
+            } catch (error) {
+                console.error('Error checking stored auth:', error);
+                localStorage.removeItem('authToken');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkStoredAuth();
     }, []);
 
     const login = (newToken: string) => {
@@ -53,14 +67,15 @@ function useAuth(): AuthContextType {
         token,
         login,
         logout,
-        isAuthenticated: !!token && !!user
+        isAuthenticated: !!token && !!user,
+        isLoading
     };
 }
 
 function AppContent() {
     const [activeSection, setActiveSection] = useState('pedidos');
     const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } : ToastContextType = useToast();
-    const { user, isAuthenticated, login, logout } = useAuth();
+    const { user, isAuthenticated, login, logout, isLoading } = useAuth();
 
     const handleToast = (message: string, type = 'info') => {
         switch (type) {
@@ -88,7 +103,21 @@ function AppContent() {
     const handleLogout = () => {
         logout();
         showInfo('You have been logged out');
+        setActiveSection('pedidos');
     };
+
+    if (isLoading) {
+        return (
+            <div className="d-flex align-items-center justify-content-center vh-100" style={{backgroundColor: '#B4E6FF'}}>
+                <div className="text-center">
+                    <div className="spinner-border text-primary mb-3" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Checking authentication...</p>
+                </div>
+            </div>
+        );
+    }
 
     // Show login screen if not authenticated
     if (!isAuthenticated) {
