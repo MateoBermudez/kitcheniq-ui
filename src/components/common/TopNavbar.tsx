@@ -10,7 +10,7 @@ const TopNavbar = () => {
     });
 
     const handleLogout = () => {
-        console.log('Cerrando sesión...');
+        console.log('Logging out...');
     };
 
     return (
