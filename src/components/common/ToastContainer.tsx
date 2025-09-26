@@ -14,9 +14,10 @@ export interface ToastItem {
 interface ToastContainerProps {
     toasts: ToastItem[];
     onClose: (id: string | number) => void;
+    title: string;
 }
 
-const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
+const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title }) => {
     const getToastIcon = (type: ToastType) => {
         switch (type) {
             case 'success':
@@ -78,7 +79,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
                     >
                         <Toast.Header style={toastStyle.header}>
                             {getToastIcon(toast.type)}
-                            <strong className="me-auto">Order Status</strong>
+                            <strong className="me-auto">{title}</strong>
                             <small>{toast.timestamp}</small>
                         </Toast.Header>
                         <Toast.Body style={toastStyle.body}>
