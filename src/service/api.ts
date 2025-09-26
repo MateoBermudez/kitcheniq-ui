@@ -1,6 +1,7 @@
 import axios from 'axios';
+import type {InventoryItem} from "../components/InventoryStatus/InventoryStatus.tsx";
 
-const API_BASE_URL = 'http://localhost:8080/api/v1'; // Use ENV Variables
+const API_BASE_URL = 'http://localhost:5000'; // Use ENV Variables
 
 
 export interface OrderComponentData {
@@ -8,7 +9,7 @@ export interface OrderComponentData {
     type: string;
 }
 
-// Tipo para el objeto orderData
+// Type for Order Data
 export interface OrderData {
     id: number | null;
     details: string;
@@ -19,6 +20,15 @@ export interface OrderData {
     table: string;
 }
 
+export interface SupplierItem {
+    id: number | null;
+    name: string;
+    description: string;
+    available: boolean;
+    status: string;
+    requestDay: string;
+    cost: number;
+}
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -66,6 +76,22 @@ export const getOrdersByStatus = (status: string) => {
 
 export const updateOrderStatus = (id: number, status: string) => {
     return apiClient.post(`/orders/updateStatus/${id}/${status}`);
+};
+
+export const createInventoryItem = (itemData: InventoryItem) => {
+    return apiClient.post('/inventory/create', itemData);
+}
+
+export const getAllInventoryItems = () => {
+    return apiClient.get('/inventory/getAll');
+}
+
+export const createSupplierItem = (itemData: SupplierItem) => {
+    return apiClient.post('/supplier/create', itemData);
+}
+
+export const getAllSupplierItems = (supplierId?: string) => {
+    return apiClient.get('/kitcheniq/api/v1/suppliers/get-orders', { params: { supplierId } });
 };
 
 export default apiClient;

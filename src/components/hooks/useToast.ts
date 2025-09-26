@@ -3,6 +3,6 @@ import { ToastContext } from '../../context/toastContext.ts';
 
 export const useToast = () => {
     const context = useContext(ToastContext);
-    if (!context) throw new Error('useToast debe usarse dentro de ToastProvider');
+    if (!context) throw new Error('useToast must be used within a ToastProvider');
     return context;
 };

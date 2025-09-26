@@ -13,6 +13,7 @@ import {
     FileEarmarkBarGraph,
     PersonCircle
 } from 'react-bootstrap-icons';
+import { Link } from 'react-router-dom';
 import perfilImage from '../../assets/profilepic.jpg';
 
 type SidebarProps = {
@@ -32,23 +33,25 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
 
     const controlItems: NavItem[] = [
         { key: 'Home', icon: <House size={18} />, label: 'Home' },
-        { key: 'pedidos', icon: <ClipboardCheck size={18} />, label: 'Orders' },
-        { key: 'Inventario', icon: <Box size={18} />, label: 'Inventory' },
-        { key: 'Carta', icon: <Journal size={18} />, label: 'Menu' },
-        { key: 'Proveedores', icon: <Truck size={18} />, label: 'Suppliers' },
-        { key: 'Personal', icon: <People size={18} />, label: 'Staff' },
+        { key: 'order', icon: <ClipboardCheck size={18} />, label: 'Orders' },
+        { key: 'inventory', icon: <Box size={18} />, label: 'Inventory' },
+        { key: 'menu', icon: <Journal size={18} />, label: 'Menu' },
+        { key: 'supplier', icon: <Truck size={18} />, label: 'Suppliers' },
+        { key: 'staff', icon: <People size={18} />, label: 'Staff' },
     ];
 
-    const finanzasItems: NavItem[] = [
-        { key: 'Caja', icon: <CashCoin size={18} />, label: 'Cash Register' },
-        { key: 'Ventas', icon: <BarChart size={18} />, label: 'Sales' },
-        { key: 'Gastos', icon: <Receipt size={18} />, label: 'Expenses' },
-        { key: 'Reportes', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
+    const financeItems: NavItem[] = [
+        { key: 'cash', icon: <CashCoin size={18} />, label: 'Cash Register' },
+        { key: 'sales', icon: <BarChart size={18} />, label: 'Sales' },
+        { key: 'expenses', icon: <Receipt size={18} />, label: 'Expenses' },
+        { key: 'reports', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
     ];
 
     const renderNavItems = (items: NavItem[]) => {
         return items.map((item: NavItem) => (
             <Nav.Link
+                as={Link}
+                to={`/${item.key.toLowerCase()}`}
                 key={item.key}
                 className={`d-flex align-items-center py-2 px-3 text-dark ${
                     activeSection === item.key || item.active ? 'rounded' : ''
@@ -121,7 +124,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
 
                 <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
               
-                {renderNavItems(finanzasItems)}
+                {renderNavItems(financeItems)}
             </Nav>
         </div>
     );
