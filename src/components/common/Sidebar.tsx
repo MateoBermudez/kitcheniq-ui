@@ -19,6 +19,8 @@ import perfilImage from '../../assets/profilepic.jpg';
 type SidebarProps = {
     activeSection: string;
     onSectionChange: (section: string) => void;
+    userName?: string;
+    userType?: string;
 };
 
 type NavItem = {
@@ -29,8 +31,20 @@ type NavItem = {
     active?: boolean;
 };
 
-const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
+const Sidebar = ({ activeSection, onSectionChange, userName, userType }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
+
+    // Función para formatear el tipo de empleado
+    const formatUserType = (type?: string) => {
+        if (!type) return 'EMPLOYEE';
+        return type.toUpperCase();
+    };
+
+    // Función para obtener el nombre de usuario
+    const getDisplayName = (name?: string) => {
+        if (!name) return 'USER123';
+        return name;
+    };
 
     const controlItems: NavItem[] = [
         { key: 'home', route: '/home', icon: <House size={18} />, label: 'Home' },
@@ -92,8 +106,8 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                         />
                     </div>
                     <div>
-                        <small className="text-muted">DANIELOIDE2</small>
-                        <div className="fw-bold">Administrator</div>
+                        <small className="text-muted">{getDisplayName(userName)}</small>
+                        <div className="fw-bold">{formatUserType(userType)}</div>
                     </div>
                 </div>
             </div>

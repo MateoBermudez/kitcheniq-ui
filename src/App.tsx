@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
@@ -21,7 +21,7 @@ interface User {
 interface AuthContextType {
     user: User | null;
     token: string | null;
-    login: (token: string) => void;
+    login: (token: string, userData?: { name?: string; type?: string; id?: string }) => void;
     logout: () => void;
     isAuthenticated: boolean;
     isLoading: boolean;
@@ -38,9 +38,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
         const checkStoredAuth = async () => {
             try {
                 const storedToken = localStorage.getItem('authToken');
+                const storedUserData = localStorage.getItem('userData');
                 if (storedToken) {
                     setToken(storedToken);
-                    setUser({ id: 'current_user' });
+                    const userData = storedUserData ? JSON.parse(storedUserData) : {};
+                    setUser({
+                        id: userData.id || 'current_user',
+                        name: userData.name,
+                        type: userData.type
+                    });
                 } else {
                     setToken(null);
                     setUser(null);
@@ -50,6 +56,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
                 setToken(null);
                 setUser(null);
                 localStorage.removeItem('authToken');
+                localStorage.removeItem('userData');
             } finally {
                 setIsLoading(false);
             }
@@ -58,16 +65,28 @@ function AuthProvider({ children }: { children: ReactNode }) {
         checkStoredAuth();
     }, []);
 
-    const login = (newToken: string) => {
+    const login = (newToken: string, userData?: { name?: string; type?: string; id?: string }) => {
         setToken(newToken);
         localStorage.setItem('authToken', newToken);
-        setUser({ id: 'current_user' });
+
+        const userInfo = {
+            id: userData?.id || 'current_user',
+            name: userData?.name,
+            type: userData?.type
+        };
+
+        setUser(userInfo);
+
+        if (userData) {
+            localStorage.setItem('userData', JSON.stringify(userData));
+        }
     };
 
     const logout = () => {
         setToken(null);
         setUser(null);
         localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
     };
 
     return (
@@ -94,7 +113,7 @@ function useAuth(): AuthContextType {
 
 function MainLayout() {
     const { toasts, removeToast, showInfo, showSuccess } : ToastContextType = useToast();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
@@ -148,6 +167,8 @@ function MainLayout() {
                 <Sidebar
                     activeSection={activeSection}
                     onSectionChange={handleSectionChange}
+                    userName={user?.name}
+                    userType={user?.type}
                 />
                 <div className="flex-grow-1">
                     <Routes>
@@ -191,8 +212,8 @@ function AppContent() {
         removeToast(typeof id === 'string' ? Number(id) : id);
     };
 
-    const handleLoginSuccess = (token: string) => {
-        login(token);
+    const handleLoginSuccess = (token: string, userData?: { name?: string; type?: string; id?: string }) => {
+        login(token, userData);
         setTimeout(() => {
             showSuccess('Login successful! Welcome to KitchenIQ');
         }, 100);

@@ -8,13 +8,15 @@ interface LoginRequest {
 
 interface AuthResponse {
     token?: string;
-    Token?: string;
-    access_token?: string;
-    accessToken?: string;
+    name?: string;
+    type?: string;
+    employeeType?: string;
+    entityType?: string;
+    id?: string;
 }
 
 interface LoginProps {
-    onLoginSuccess?: (token: string) => void;
+    onLoginSuccess?: (token: string, userData?: {name?: string; type?: string }) => void;
     apiBaseUrl?: string;
 }
 
@@ -57,15 +59,27 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
             }
 
             const data: AuthResponse = await response.json();
+            console.log('Full Login response:', data); // View complete structure
+            console.log('Response keys:', Object.keys(data)); // Debug response keys
 
-            const token = data.token || data.Token || data.access_token || data.accessToken;
+            const token = data.token;
 
             if (!token) {
                 throw new Error('No authentication token received from server');
             }
 
+            // Extract user data from login response
+            const userData = {
+                name: data.name,
+                type: data.employeeType,
+                entityType: data.entityType,
+                id: data.id
+            };
+
+            console.log('Mapped user data:', userData);
+
             if (onLoginSuccess) {
-                onLoginSuccess(token);
+                onLoginSuccess(token, userData);
             }
 
         } catch (err) {
