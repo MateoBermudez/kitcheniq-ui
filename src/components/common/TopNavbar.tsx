@@ -15,6 +15,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
 
     const handleLogout = () => {
         console.log('Logging Out...');
+        localStorage.clear()
         if (onLogout) {
             onLogout();
         }

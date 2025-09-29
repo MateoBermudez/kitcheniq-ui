@@ -76,6 +76,8 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                 id: data.id
             };
 
+            localStorage.setItem('userId', formData.userId);
+
             console.log('Mapped user data:', userData);
 
             if (onLoginSuccess) {

@@ -41,6 +41,10 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
     (config) => {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
         console.log('API Request:', config.method?.toUpperCase(), config.url);
         return config;
     },
@@ -87,6 +91,7 @@ export const getAllInventoryItems = () => {
     return apiClient.get('/inventory/getAll');
 }
 
+// This is an admin only function
 export const createSupplierItem = (itemData: SupplierItem) => {
     return apiClient.post('/supplier/create', itemData);
 }

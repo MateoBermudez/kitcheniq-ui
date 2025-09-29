@@ -47,14 +47,11 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         setLoading(true);
         setError(null);
         try {
-            // SUP001 is a placeholder supplier ID; replace with actual logic as needed
-            let userId: string | null = localStorage.getItem('userId');
+            const userId: string | null = localStorage.getItem('userId');
             if (!userId) {
                 // /login or /
-                // window.location.href = '/login';
-                // return;
-                // For now:
-                userId = 'SUP001';
+                window.location.href = '/login';
+                return;
             }
             const response = await getAllSupplierItems(userId);
             const data = response.data ?? response;
