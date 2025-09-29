@@ -366,7 +366,7 @@ const SupplierTable: React.FC<SupplierTableProps> = ({ searchTerm, onToast, item
                                                         size="sm"
                                                         onClick={() => {
                                                             if (dispatchingOrder.orderId !== null) {
-                                                                handleAcceptItem(item.itemId, dispatchingOrder.orderId, ).then(() => {});
+                                                                handleAcceptItem(item.itemId, dispatchingOrder.orderId).then(() => {});
                                                             }
                                                         }}
                                                         disabled={acceptedItems[item.itemId]}
