@@ -32,3 +32,8 @@ html, body, #root {
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+
+.dropdown-menu-super {
+  z-index: 9999 !important;
+  position: fixed !important;
+}

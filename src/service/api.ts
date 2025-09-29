@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type {InventoryItem} from "../components/InventoryStatus/InventoryStatus.tsx";
+import type {SupplierOrderItem} from "../components/SupplierStatus/SupplierStatus.tsx";
 
 const API_BASE_URL = 'http://localhost:5000'; // Use ENV Variables
 
@@ -93,5 +94,49 @@ export const createSupplierItem = (itemData: SupplierItem) => {
 export const getAllSupplierItems = (supplierId?: string) => {
     return apiClient.get('/kitcheniq/api/v1/suppliers/get-orders', { params: { supplierId } });
 };
+
+export async function getSupplierOrderPdf(orderId: number): Promise<void> {
+    try {
+        const response = await apiClient.get('/kitcheniq/api/v1/suppliers/get-order-pdf', {
+            params: { orderId },
+            responseType: 'blob', // Important: receive as Blob
+        });
+
+        // Create a Blob URL for the PDF
+        const pdfBlob = new Blob([response.data], { type: 'application/pdf' });
+        const pdfUrl = window.URL.createObjectURL(pdfBlob);
+
+        // Open PDF in a new tab
+        window.open(pdfUrl, '_blank');
+
+        // Optionally, trigger download:
+        // const link = document.createElement('a');
+        // link.href = pdfUrl;
+        // link.download = `purchase_order_${orderId}.pdf`;
+        // document.body.appendChild(link);
+        // link.click();
+        // document.body.removeChild(link);
+
+    } catch (error) {
+        console.error('Error fetching PDF:', error);
+        // Optionally, show a toast or error message
+    }
+}
+
+export const changeSupplierOrderStatus = (orderId: number, status: string) => {
+    return apiClient.post(`/kitcheniq/api/v1/suppliers/purchase-order`, null, { params: { orderId, status } });
+}
+
+export const deliverSupplierItem = (item: SupplierOrderItem) => {
+    return apiClient.post(`/kitcheniq/api/v1/suppliers/deliver-order`, item);
+}
+
+export const finishSupplierDispatch = (orderId: number) => {
+    return apiClient.post(`/kitcheniq/api/v1/suppliers/finish-dispatch`, null, { params: { purchaseOrderDTO: orderId } });
+}
+
+export const initiateDispatch = (orderId: number) => {
+    return apiClient.post(`/kitcheniq/api/v1/suppliers/initiate-dispatch`, null, { params: { orderId } });
+}
 
 export default apiClient;
