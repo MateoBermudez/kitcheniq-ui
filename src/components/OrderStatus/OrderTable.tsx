@@ -12,6 +12,15 @@ import {
 } from 'react-bootstrap-icons';
 import {getAllOrders, updateOrderStatus, deleteOrder, type OrderComponentData} from '../../service/api';
 
+// Interfaz que representa la respuesta real del backend Java
+interface BackendOrderData {
+    orderId: number;
+    totalPrice: number;
+    orderBill: string;  // JSON string con los items
+    orderDate: string;
+    orderStatus: string;
+}
+
 // Types for the order table - completely in English
 interface OrderTableRow {
     id: number | null;
@@ -54,42 +63,68 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     const mapStatusToEnglish = useCallback((status: string): string => {
         const statusMap: Record<string, string> = {
             'PENDING': 'Pending',
+            'IN_PROGRESS': 'In Progress',
             'READY': 'Ready',
             'DELIVERED': 'Delivered',
             'CANCELLED': 'Cancelled',
             'PREPARING': 'Pending',
-            'COMPLETED': 'Delivered',
-            'IN_PROGRESS': 'Pending'
+            'COMPLETED': 'Ready'
         };
         return statusMap[status.toUpperCase()] ?? status ?? 'Pending';
     }, []);
 
-    const mapOrderData = useCallback((backendOrder: Record<string, unknown>): OrderTableRow => {
-        const orderId = typeof backendOrder.id === 'number' ? backendOrder.id :
-            typeof backendOrder._id === 'number' ? backendOrder._id : null;
+    // Maps English status to backend format
+    const mapStatusToBackend = useCallback((englishStatus: string): string => {
+        const statusMap: Record<string, string> = {
+            'Pending': 'PENDING',
+            'In Progress': 'IN_PROGRESS',
+            'Ready': 'READY',
+            'Delivered': 'DELIVERED',
+            'Cancelled': 'CANCELLED'
+        };
+        return statusMap[englishStatus] ?? englishStatus;
+    }, []);
+
+    const mapOrderData = useCallback((backendOrder: any): OrderTableRow => {
+        // Mapear según la estructura real de la API de Postman
+        const orderId = backendOrder.orderId || backendOrder.id || null;
+
+        const parseOrderItems = (orderBillJson: string): OrderComponentData[] => {
+            try {
+                const items = JSON.parse(orderBillJson);
+                return items.map((item: any) => ({
+                    id: item.id || 0,
+                    quantity: item.quantity || 1,
+                    productId: item.productId || 0,
+                    productName: item.productName || `Product ID: ${item.productId}`,
+                    productPrice: item.productPrice || 0
+                }));
+            } catch {
+                return [];
+            }
+        };
 
         // Use backend requestTime directly
-        const backendRequestTime = typeof backendOrder.requestTime === 'string' ? backendOrder.requestTime : null;
+        const backendRequestTime = backendOrder.orderDate || null;
         const localRequestTime = orderId !== null ? localOrderTimes[String(orderId)] : null;
         const requestTime = localRequestTime || backendRequestTime || 'N/A';
 
         // Use backend deliveryTime directly
-        const backendDeliveryTime = typeof backendOrder.deliveryTime === 'string' ? backendOrder.deliveryTime : null;
         const localDeliveryTime = orderId !== null ? localDeliveryTimes[String(orderId)] : null;
-        const deliveryTime = localDeliveryTime || backendDeliveryTime;
+        const deliveryTime = localDeliveryTime || null;
 
         return {
             id: orderId,
-            code: typeof backendOrder.code === 'string' ? backendOrder.code : `ORD-${orderId ?? 'XXX'}`,
-            requestingClient: typeof backendOrder.requestingClient === 'string' ? backendOrder.requestingClient : 'Customer',
-            table: typeof backendOrder.table === 'string' ? backendOrder.table : 'N/A',
-            status: mapStatusToEnglish(typeof backendOrder.status === 'string' ? backendOrder.status : 'PENDING'),
+            code: `ORD-${orderId ?? 'XXX'}`,
+            requestingClient: 'Customer', // No viene en la respuesta actual
+            table: 'N/A', // No viene en la respuesta actual
+            status: mapStatusToEnglish(backendOrder.orderStatus || 'PENDING'),
             requestTime,
             deliveryTime,
-            items: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
-            details: typeof backendOrder.details === 'string' ? backendOrder.details : '',
-            originalStatus: typeof backendOrder.originalStatus === 'string' ? backendOrder.originalStatus : undefined,
-            components: Array.isArray(backendOrder.components) ? backendOrder.components as OrderComponentData[] : [],
+            items: parseOrderItems(backendOrder.orderBill || '[]'),
+            details: backendOrder.orderBill || '',
+            originalStatus: backendOrder.orderStatus,
+            components: parseOrderItems(backendOrder.orderBill || '[]'),
         };
     }, [localOrderTimes, localDeliveryTimes, mapStatusToEnglish]);
 
@@ -99,22 +134,23 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             setError(null);
             const response = await getAllOrders();
             const ordersData = response.data ?? response;
-            let processedOrders: Record<string, unknown>[] = [];
+            let processedOrders: any[] = [];
 
+            // Usar any[] para evitar conflictos de tipos
             if (Array.isArray(ordersData)) {
                 processedOrders = ordersData;
-            } else if (ordersData.data && Array.isArray(ordersData.data)) {
-                processedOrders = ordersData.data;
-            } else if (ordersData.orders && Array.isArray(ordersData.orders)) {
-                processedOrders = ordersData.orders;
-            } else if (ordersData.content && Array.isArray(ordersData.content)) {
-                processedOrders = ordersData.content;
-            } else if (ordersData.result && Array.isArray(ordersData.result)) {
-                processedOrders = ordersData.result;
-            } else if (ordersData.items && Array.isArray(ordersData.items)) {
-                processedOrders = ordersData.items;
-            } else if (typeof ordersData === 'object') {
-                if ('id' in ordersData || '_id' in ordersData || 'code' in ordersData) {
+            } else if (ordersData && typeof ordersData === 'object') {
+                if ('data' in ordersData && Array.isArray(ordersData.data)) {
+                    processedOrders = ordersData.data;
+                } else if ('orders' in ordersData && Array.isArray(ordersData.orders)) {
+                    processedOrders = ordersData.orders;
+                } else if ('content' in ordersData && Array.isArray(ordersData.content)) {
+                    processedOrders = ordersData.content;
+                } else if ('result' in ordersData && Array.isArray(ordersData.result)) {
+                    processedOrders = ordersData.result;
+                } else if ('items' in ordersData && Array.isArray(ordersData.items)) {
+                    processedOrders = ordersData.items;
+                } else if ('orderId' in ordersData || 'id' in ordersData || 'code' in ordersData) {
                     processedOrders = [ordersData];
                 }
             }
@@ -168,17 +204,6 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         return () => clearInterval(intervalId);
     }, [loadOrders]);
 
-    // Maps English status to backend format
-    const mapStatusToBackend = useCallback((englishStatus: string): string => {
-        const statusMap: Record<string, string> = {
-            'Pending': 'PENDING',
-            'Ready': 'READY',
-            'Delivered': 'DELIVERED',
-            'Cancelled': 'CANCELLED'
-        };
-        return statusMap[englishStatus] ?? englishStatus;
-    }, []);
-
     const handleRefresh = async () => {
         try {
             setRefreshing(true);
@@ -217,6 +242,12 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 return {
                     backgroundColor: '#feffd4',
                     border: '1px solid #c2c838',
+                    color: '#000000'
+                };
+            case 'in progress':
+                return {
+                    backgroundColor: '#FFE4B5',
+                    border: '1px solid #DEB887',
                     color: '#000000'
                 };
             case 'ready':
@@ -466,6 +497,12 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                                 disabled={order.status === 'Pending'}
                                             >
                                                 <HourglassSplit size={16} className="me-2" /> Mark as Pending
+                                            </Dropdown.Item>
+                                            <Dropdown.Item
+                                                onClick={() => handleStatusChange(order.code, 'In Progress')}
+                                                disabled={order.status === 'In Progress'}
+                                            >
+                                                <ArrowClockwise size={16} className="me-2" /> Mark as In Progress
                                             </Dropdown.Item>
                                             <Dropdown.Item
                                                 onClick={() => handleStatusChange(order.code, 'Ready')}
