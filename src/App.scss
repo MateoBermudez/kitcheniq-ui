@@ -34,7 +34,12 @@ html, body, #root {
   letter-spacing: -0.02em;
 }
 
-/* Agregar en App.scss */
+
+.dropdown-menu-super {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
 .logo-animation {
   animation: fadeInScale 1.5s ease-out;
 }

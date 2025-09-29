@@ -1,22 +1,35 @@
-import React, { useState, useCallback } from 'react';
-import { Form, Button, Row, Col, Card, Spinner, Alert } from 'react-bootstrap';
+import React, { useState } from 'react';
+import { Form, Button, Row, Col, Card } from 'react-bootstrap';
 import { Search } from 'react-bootstrap-icons';
-import { getAllSupplierItems } from '../../service/api';
 import type { SupplierOrder } from './SupplierStatus';
 
 interface SupplierSearchProps {
+    items: SupplierOrder[];
     onSearch?: (results: SupplierOrder[]) => void;
 }
 
-const SupplierSearch: React.FC<SupplierSearchProps> = ({ onSearch }) => {
-    const [searchForm, setSearchForm] = useState<{ name: string; status: string; requestDay: string }>({
-        name: '',
+const PURCHASE_ORDER_STATUS = [
+    'PENDING',
+    'ACCEPTED',
+    'REJECTED',
+    'DELIVERED',
+    'CANCELLED',
+    'DISPATCHING'
+];
+
+const SupplierSearch: React.FC<SupplierSearchProps> = ({ items, onSearch }) => {
+    const [searchForm, setSearchForm] = useState<{
+        orderId: string;
+        status: string;
+        requestDay: string;
+        totalAmount: string;
+    }>({
+        orderId: '',
         status: '',
-        requestDay: ''
+        requestDay: '',
+        totalAmount: ''
     });
-    const [searchResults, setSearchResults] = useState<SupplierOrder[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<SupplierOrder[]>(items);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
 
     const handleInputChange = (field: string, value: string) => {
@@ -26,72 +39,78 @@ const SupplierSearch: React.FC<SupplierSearchProps> = ({ onSearch }) => {
         }));
     };
 
-    const handleSearch = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        setHasSearched(false);
-        try {
-            const response = await getAllSupplierItems();
-            const items: SupplierOrder[] = response.data ?? [];
-            const filtered = items.filter(item => {
-                const nameMatch = searchForm.name ? item.name.toLowerCase().includes(searchForm.name.toLowerCase()) : true;
-                const statusMatch = searchForm.status ? item.status.toLowerCase().includes(searchForm.status.toLowerCase()) : true;
-                const requestDayMatch = searchForm.requestDay ? item.requestDay.toLowerCase().includes(searchForm.requestDay.toLowerCase()) : true;
-                return nameMatch && statusMatch && requestDayMatch;
-            });
-            setSearchResults(filtered);
-            setHasSearched(true);
-            if (onSearch) onSearch(filtered);
-        } catch (err: unknown) {
-            console.error(err);
-            setError('Error searching supplier items');
-        } finally {
-            setLoading(false);
-        }
-    }, [searchForm, onSearch]);
+    const handleSearch = () => {
+        const filtered = items.filter(item => {
+            const idMatch = searchForm.orderId ? String(item.orderId).includes(searchForm.orderId) : true;
+            const statusMatch = searchForm.status ? item.status === searchForm.status : true;
+            const dayMatch = searchForm.requestDay ? item.orderDate.slice(0, 10) === searchForm.requestDay : true;
+            const totalMatch = searchForm.totalAmount ? item.totalAmount === Number(searchForm.totalAmount) : true;
+            return idMatch && statusMatch && dayMatch && totalMatch;
+        });
+        setSearchResults(filtered);
+        setHasSearched(true);
+        if (onSearch) onSearch(filtered);
+    };
 
     return (
         <Card className="mb-3">
             <Card.Body>
                 <Form>
                     <Row className="align-items-end">
-                        <Col md={4}>
-                            <Form.Group controlId="searchName">
-                                <Form.Label>Name</Form.Label>
+                        <Col md={3}>
+                            <Form.Group controlId="searchOrderId">
+                                <Form.Label>Order ID</Form.Label>
                                 <Form.Control
                                     type="text"
-                                    placeholder="Search by name"
-                                    value={searchForm.name}
-                                    onChange={e => handleInputChange('name', e.target.value)}
+                                    placeholder="Search by order ID"
+                                    value={searchForm.orderId}
+                                    onChange={e => handleInputChange('orderId', e.target.value)}
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={4}>
+                        <Col md={3}>
                             <Form.Group controlId="searchStatus">
                                 <Form.Label>Status</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Search by status"
+                                <Form.Select
                                     value={searchForm.status}
                                     onChange={e => handleInputChange('status', e.target.value)}
-                                />
+                                >
+                                    <option value="">All</option>
+                                    {PURCHASE_ORDER_STATUS.map(status => (
+                                        <option key={status} value={status}>{status}</option>
+                                    ))}
+                                </Form.Select>
                             </Form.Group>
                         </Col>
-                        <Col md={4}>
+                        <Col md={3}>
                             <Form.Group controlId="searchRequestDay">
                                 <Form.Label>Request Day</Form.Label>
                                 <Form.Control
-                                    type="text"
+                                    type="date"
                                     placeholder="Search by request day"
                                     value={searchForm.requestDay}
+                                    max={new Date().toISOString().split('T')[0]}
                                     onChange={e => handleInputChange('requestDay', e.target.value)}
+                                />
+                            </Form.Group>
+                        </Col>
+                        <Col md={3}>
+                            <Form.Group controlId="searchTotalAmount">
+                                <Form.Label>Total Amount</Form.Label>
+                                <Form.Control
+                                    type="number"
+                                    placeholder="Search by total amount"
+                                    value={searchForm.totalAmount}
+                                    min={0}
+                                    max={120000}
+                                    onChange={e => handleInputChange('totalAmount', e.target.value)}
                                 />
                             </Form.Group>
                         </Col>
                     </Row>
                     <Row className="mt-3">
                         <Col md={12}>
-                            <Button variant="primary" onClick={handleSearch} disabled={loading} className="w-100"
+                            <Button variant="primary" onClick={handleSearch} className="w-100"
                                     style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}>
                                 <Search className="me-1" />
                                 Search
@@ -99,25 +118,21 @@ const SupplierSearch: React.FC<SupplierSearchProps> = ({ onSearch }) => {
                         </Col>
                     </Row>
                 </Form>
-                {loading && <div className="d-flex justify-content-center py-3"><Spinner animation="border" /></div>}
-                {error && <Alert variant="danger" className="mt-2">{error}</Alert>}
-                {hasSearched && !loading && (
+                {hasSearched && (
                     <div className="mt-3">
                         {searchResults.length === 0 ? (
-                            <div className="text-muted text-center">No supplier items found.</div>
+                            <div className="text-muted text-center">No supplier orders found.</div>
                         ) : (
                             <Row>
                                 {searchResults.map(item => (
-                                    <Col md={6} lg={4} key={item.id ?? item.name} className="mb-3">
+                                    <Col md={6} lg={4} key={item.orderId ?? item.orderDate} className="mb-3">
                                         <Card>
                                             <Card.Body>
-                                                <Card.Title>{item.name}</Card.Title>
+                                                <Card.Title>Order #{item.orderId}</Card.Title>
                                                 <Card.Subtitle className="mb-2 text-muted">Status: {item.status}</Card.Subtitle>
                                                 <Card.Text>
-                                                    <strong>Description:</strong> {item.description || 'No description'}<br />
-                                                    <strong>Available:</strong> {item.available ? 'Yes' : 'No'}<br />
-                                                    <strong>Request Day:</strong> {item.requestDay}<br />
-                                                    <strong>Cost:</strong> ${item.cost}
+                                                    <strong>Date:</strong> {item.orderDate}<br />
+                                                    <strong>Total:</strong> ${item.totalAmount}
                                                 </Card.Text>
                                             </Card.Body>
                                         </Card>
