@@ -86,7 +86,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                         <img
                             src="/LogoCompleto.png"
                             alt="LogoKitchen"
-                            className="img-fluid"
+                            className="img-fluid logo-animation logo-animation-subtle"
                             style={{maxWidth: '400px'}}
                         />
                     </div>

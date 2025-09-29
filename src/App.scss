@@ -33,3 +33,24 @@ html, body, #root {
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+
+/* Agregar en App.scss */
+.logo-animation {
+  animation: fadeInScale 1.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.logo-animation-subtle:hover {
+  transform: scale(1.05);
+  transition: transform 0.3s ease-in-out;
+}
