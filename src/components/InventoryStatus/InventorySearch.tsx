@@ -79,7 +79,6 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                             <Button variant="primary" onClick={handleSearch} disabled={loading} className="w-100"
                                     style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}>
                                 <Search className="me-1" />
-                                Search
                             </Button>
                         </Col>
                     </Row>

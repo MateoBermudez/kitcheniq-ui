@@ -1,8 +1,12 @@
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
-import logo from '../../assets/letras.png';
+import logo from '../../assets/LogoBlack.png';
 
-const TopNavbar = () => {
+interface TopNavbarProps {
+    onLogout?: () => void;
+}
+
+const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
     const actualDate = new Date().toLocaleDateString('es-ES', {
         day: '2-digit',
         month: '2-digit',
@@ -10,11 +14,14 @@ const TopNavbar = () => {
     });
 
     const handleLogout = () => {
-        console.log('Logging out...');
+        console.log('Logging Out...');
+        if (onLogout) {
+            onLogout();
+        }
     };
 
     return (
-        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#B1E5FF' }}>
+        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#86E5FF' }}>
             <Container fluid>
                 <div className="ms-2">
                     <Navbar.Brand href="/">
@@ -28,7 +35,6 @@ const TopNavbar = () => {
                                 objectFit: 'contain'
                             }}
                         />
-
                     </Navbar.Brand>
                 </div>
                 <Nav className="ms-auto d-flex align-items-center">

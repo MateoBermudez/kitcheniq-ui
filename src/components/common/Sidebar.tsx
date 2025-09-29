@@ -19,39 +19,54 @@ import perfilImage from '../../assets/profilepic.jpg';
 type SidebarProps = {
     activeSection: string;
     onSectionChange: (section: string) => void;
+    userName?: string;
+    userType?: string;
 };
 
 type NavItem = {
     key: string;
+    route: string;
     icon: JSX.Element;
     label: string;
     active?: boolean;
 };
 
-const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
+const Sidebar = ({ activeSection, onSectionChange, userName, userType }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
 
+    // Función para formatear el tipo de empleado
+    const formatUserType = (type?: string) => {
+        if (!type) return 'EMPLOYEE';
+        return type.toUpperCase();
+    };
+
+    // Función para obtener el nombre de usuario
+    const getDisplayName = (name?: string) => {
+        if (!name) return 'USER123';
+        return name;
+    };
+
     const controlItems: NavItem[] = [
-        { key: 'Home', icon: <House size={18} />, label: 'Home' },
-        { key: 'order', icon: <ClipboardCheck size={18} />, label: 'Orders' },
-        { key: 'inventory', icon: <Box size={18} />, label: 'Inventory' },
-        { key: 'menu', icon: <Journal size={18} />, label: 'Menu' },
-        { key: 'supplier', icon: <Truck size={18} />, label: 'Suppliers' },
-        { key: 'staff', icon: <People size={18} />, label: 'Staff' },
+        { key: 'home', route: '/home', icon: <House size={18} />, label: 'Home' },
+        { key: 'orders', route: '/orders', icon: <ClipboardCheck size={18} />, label: 'Orders' },
+        { key: 'inventory', route: '/inventory', icon: <Box size={18} />, label: 'Inventory' },
+        { key: 'menu', route: '/menu', icon: <Journal size={18} />, label: 'Menu' },
+        { key: 'supplier', route: '/supplier', icon: <Truck size={18} />, label: 'Suppliers' },
+        { key: 'staff', route: '/staff', icon: <People size={18} />, label: 'Staff' },
     ];
 
     const financeItems: NavItem[] = [
-        { key: 'cash', icon: <CashCoin size={18} />, label: 'Cash Register' },
-        { key: 'sales', icon: <BarChart size={18} />, label: 'Sales' },
-        { key: 'expenses', icon: <Receipt size={18} />, label: 'Expenses' },
-        { key: 'reports', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
+        { key: 'cash', route: '/cash', icon: <CashCoin size={18} />, label: 'Cash Register' },
+        { key: 'sales', route: '/sales', icon: <BarChart size={18} />, label: 'Sales' },
+        { key: 'expenses', route: '/expenses', icon: <Receipt size={18} />, label: 'Expenses' },
+        { key: 'reports', route: '/reports', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
     ];
 
     const renderNavItems = (items: NavItem[]) => {
         return items.map((item: NavItem) => (
             <Nav.Link
                 as={Link}
-                to={`/${item.key.toLowerCase()}`}
+                to={item.route}
                 key={item.key}
                 className={`d-flex align-items-center py-2 px-3 text-dark ${
                     activeSection === item.key || item.active ? 'rounded' : ''
@@ -59,7 +74,8 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 onClick={() => onSectionChange && onSectionChange(item.key)}
                 style={{
                     cursor: 'pointer',
-                    backgroundColor: (activeSection === item.key || item.active) ? '#B1E5FF' : 'transparent'
+                    backgroundColor: (activeSection === item.key || item.active) ? '#86e5ff' : 'transparent',
+                    textDecoration: 'none'
                 }}
             >
                 <span className="me-2">{item.icon}</span>
@@ -72,13 +88,13 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
         <div className="border-end d-flex flex-column"
              style={{
                  width: '250px',
-                 backgroundColor: '#E3F2FD',
+                 backgroundColor: '#C5EFFFFF',
                  height: '100vh',
                  position: 'sticky',
                  top: 0,
                  overflowY: 'auto'
              }}>
-            <div className="p-4 border-bottom rounded-bottom-4" style={{backgroundColor: '#B1E5FF'}}>
+            <div className="p-4 border-bottom rounded-bottom-4" style={{backgroundColor: '#86e5ff'}}>
                 <div className="d-flex align-items-center py-2">
                     <div className="rounded-circle d-flex align-items-center justify-content-center me-3"
                          style={{ width: '50px', height: '50px', overflow: 'hidden', cursor: 'pointer' }}
@@ -90,8 +106,8 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                         />
                     </div>
                     <div>
-                        <small className="text-muted">DANIELOIDE2</small>
-                        <div className="fw-bold">Administrator</div>
+                        <small className="text-muted">{getDisplayName(userName)}</small>
+                        <div className="fw-bold">{formatUserType(userType)}</div>
                     </div>
                 </div>
             </div>
@@ -100,11 +116,10 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 show={showImageModal}
                 onHide={() => setShowImageModal(false)}
                 centered
-                size="lg"
+                size="sm"
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
-
                         <PersonCircle size={24} className="me-2 text-dark" />
                         PROFILE PICTURE
                     </Modal.Title>
@@ -123,7 +138,6 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 {renderNavItems(controlItems)}
 
                 <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
-              
                 {renderNavItems(financeItems)}
             </Nav>
         </div>
