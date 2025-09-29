@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
 import OrderStatus from './components/OrderStatus/OrderStatus';
@@ -7,6 +8,8 @@ import ToastContainer, {type ToastType} from './components/common/ToastContainer
 import {type ToastContextType} from './context/toastContext.ts';
 import {ToastProvider} from "./context/ToastContext.tsx";
 import {useToast} from "./components/hooks/useToast.ts";
+import Inventory from './views/Inventory';
+import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 
 interface User {
@@ -24,23 +27,28 @@ interface AuthContextType {
     isLoading: boolean;
 }
 
-function useAuth(): AuthContextType {
+const AuthContext = createContext<AuthContextType | null>(null);
+
+function AuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true); // Agregamos estado de carga
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Check for stored token on app load
         const checkStoredAuth = async () => {
             try {
                 const storedToken = localStorage.getItem('authToken');
                 if (storedToken) {
-                    // Aquí podrías validar el token con el servidor si es necesario
                     setToken(storedToken);
                     setUser({ id: 'current_user' });
+                } else {
+                    setToken(null);
+                    setUser(null);
                 }
             } catch (error) {
-                console.error('Error checking stored auth:', error);
+                console.error('Error checking auth:', error);
+                setToken(null);
+                setUser(null);
                 localStorage.removeItem('authToken');
             } finally {
                 setIsLoading(false);
@@ -62,29 +70,117 @@ function useAuth(): AuthContextType {
         localStorage.removeItem('authToken');
     };
 
-    return {
-        user,
-        token,
-        login,
-        logout,
-        isAuthenticated: !!token && !!user,
-        isLoading
+    return (
+        <AuthContext.Provider value={{
+            user,
+            token,
+            login,
+            logout,
+            isAuthenticated: !!token && !!user,
+            isLoading
+        }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+function useAuth(): AuthContextType {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider');
+    }
+    return context;
+}
+
+function MainLayout() {
+    const { toasts, removeToast, showInfo, showSuccess } : ToastContextType = useToast();
+    const { logout } = useAuth();
+    const location = useLocation();
+    const [activeSection, setActiveSection] = useState('orders');
+
+    useEffect(() => {
+        const path = location.pathname;
+        if (path.includes('/orders')) {
+            setActiveSection('orders');
+        } else if (path.includes('/inventory')) {
+            setActiveSection('inventory');
+        } else if (path.includes('/supplier')) {
+            setActiveSection('supplier');
+        } else if (path.includes('/menu')) {
+            setActiveSection('menu');
+        } else if (path.includes('/staff')) {
+            setActiveSection('staff');
+        } else if (path.includes('/cash')) {
+            setActiveSection('cash');
+        } else if (path.includes('/sales')) {
+            setActiveSection('sales');
+        } else if (path.includes('/expenses')) {
+            setActiveSection('expenses');
+        } else if (path.includes('/reports')) {
+            setActiveSection('reports');
+        } else if (path.includes('/home')) {
+            setActiveSection('home');
+        }
+    }, [location.pathname]);
+
+    const mappedToasts = toasts.map(t => ({
+        ...t,
+        type: t.type as ToastType
+    }));
+
+    const handleRemoveToast = (id: string | number) => {
+        removeToast(typeof id === 'string' ? Number(id) : id);
     };
+
+    const handleLogout = () => {
+        logout();
+        showInfo('You have been logged out');
+    };
+
+    const handleSectionChange = (section: string) => {
+        setActiveSection(section);
+    };
+
+    return (
+        <div className="d-flex flex-column vh-100">
+            <TopNavbar onLogout={handleLogout} />
+            <div className="d-flex flex-grow-1">
+                <Sidebar
+                    activeSection={activeSection}
+                    onSectionChange={handleSectionChange}
+                />
+                <div className="flex-grow-1">
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/orders" replace />} />
+                        <Route path="/home" element={<div>Home Page</div>} />
+                        <Route path="/orders" element={
+                            <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
+                        } />
+                        <Route path="/inventory" element={<Inventory key="inventory" />} />
+                        <Route path="/supplier" element={<Supplier key="supplier" />} />
+                        <Route path="/menu" element={<div key="menu">Menu Page</div>} />
+                        <Route path="/staff" element={<div key="staff">Staff Page</div>} />
+                        <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
+                        <Route path="/sales" element={<div key="sales">Sales Page</div>} />
+                        <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
+                        <Route path="/reports" element={<div key="reports">Reports Page</div>} />
+                    </Routes>
+                </div>
+                <ToastContainer
+                    toasts={mappedToasts}
+                    onClose={handleRemoveToast}
+                    title="Notifications"
+                />
+            </div>
+        </div>
+    );
 }
 
 function AppContent() {
-    const [activeSection, setActiveSection] = useState('pedidos');
-    const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } : ToastContextType = useToast();
-    const { user, isAuthenticated, login, logout, isLoading } = useAuth();
-
-    const handleToast = (message: string, type = 'info') => {
-        switch (type) {
-            case 'success': return showSuccess(message);
-            case 'danger': return showError(message);
-            case 'warning': return showWarning(message);
-            default: return showInfo(message);
-        }
-    };
+    const { toasts, removeToast, showSuccess } : ToastContextType = useToast();
+    const { isAuthenticated, login, isLoading } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const mappedToasts = toasts.map(t => ({
         ...t,
@@ -97,14 +193,18 @@ function AppContent() {
 
     const handleLoginSuccess = (token: string) => {
         login(token);
-        showSuccess('Login successful! Welcome to KitchenIQ');
+        setTimeout(() => {
+            showSuccess('Login successful! Welcome to KitchenIQ');
+        }, 100);
     };
 
-    const handleLogout = () => {
-        logout();
-        showInfo('You have been logged out');
-        setActiveSection('pedidos');
-    };
+    useEffect(() => {
+        if (isAuthenticated && location.pathname === '/') {
+            setTimeout(() => {
+                navigate('/orders', { replace: true });
+            }, 50);
+        }
+    }, [isAuthenticated, location.pathname, navigate]);
 
     if (isLoading) {
         return (
@@ -119,7 +219,6 @@ function AppContent() {
         );
     }
 
-    // Show login screen if not authenticated
     if (!isAuthenticated) {
         return (
             <>
@@ -130,49 +229,24 @@ function AppContent() {
                 <ToastContainer
                     toasts={mappedToasts}
                     onClose={handleRemoveToast}
+                    title="Authentication"
                 />
             </>
         );
     }
 
-    // Show main app if authenticated
-    return (
-        <div className="d-flex flex-column vh-100">
-            <TopNavbar onLogout={handleLogout} />
-            <div className="d-flex flex-grow-1">
-                <Sidebar
-                    activeSection={activeSection}
-                    onSectionChange={setActiveSection}
-                />
-
-                <div className="flex-grow-1">
-                    {activeSection === 'pedidos' && (
-                        <OrderStatus onToast={handleToast} />
-                    )}
-                    {activeSection !== 'pedidos' && (
-                        <div className="d-flex align-items-center justify-content-center h-100" style={{backgroundColor : 'white'}}>
-                            <div className="text-center text-muted">
-                                <h3>Section: {activeSection}</h3>
-                                <p>This section will be available soon</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <ToastContainer
-                    toasts={mappedToasts}
-                    onClose={handleRemoveToast}
-                />
-            </div>
-        </div>
-    );
+    return <MainLayout />;
 }
 
 function App() {
     return (
-        <ToastProvider>
-            <AppContent />
-        </ToastProvider>
+        <AuthProvider>
+            <ToastProvider>
+                <BrowserRouter>
+                    <AppContent />
+                </BrowserRouter>
+            </ToastProvider>
+        </AuthProvider>
     );
 }
 

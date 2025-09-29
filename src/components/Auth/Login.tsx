@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import '../../App.scss';
 
-// Types for requests and responses
 interface LoginRequest {
     userId: string;
     password: string;
 }
 
 interface AuthResponse {
-    Token: string;
+    token?: string;
+    Token?: string;
+    access_token?: string;
+    accessToken?: string;
 }
 
 interface LoginProps {
@@ -22,7 +24,6 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
         password: ''
     });
 
-
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string>('');
@@ -33,7 +34,6 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
             ...prev,
             [name]: value
         }));
-        // Clear error when user starts typing
         if (error) setError('');
     };
 
@@ -58,15 +58,15 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
 
             const data: AuthResponse = await response.json();
 
-            // Store token in localStorage
-            localStorage.setItem('authToken', data.Token);
+            const token = data.token || data.Token || data.access_token || data.accessToken;
 
-            // Call callback if provided
-            if (onLoginSuccess) {
-                onLoginSuccess(data.Token);
+            if (!token) {
+                throw new Error('No authentication token received from server');
             }
 
-            console.log('Login successful:', data);
+            if (onLoginSuccess) {
+                onLoginSuccess(token);
+            }
 
         } catch (err) {
             console.error('Login error:', err);
@@ -158,9 +158,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                 </div>
             </div>
         </div>
-
     );
 };
-
 
 export default Login;

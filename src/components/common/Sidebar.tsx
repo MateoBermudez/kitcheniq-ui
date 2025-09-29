@@ -13,6 +13,7 @@ import {
     FileEarmarkBarGraph,
     PersonCircle
 } from 'react-bootstrap-icons';
+import { Link } from 'react-router-dom';
 import perfilImage from '../../assets/profilepic.jpg';
 
 type SidebarProps = {
@@ -22,6 +23,7 @@ type SidebarProps = {
 
 type NavItem = {
     key: string;
+    route: string;
     icon: JSX.Element;
     label: string;
     active?: boolean;
@@ -31,24 +33,26 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
 
     const controlItems: NavItem[] = [
-        { key: 'Home', icon: <House size={18} />, label: 'Home' },
-        { key: 'pedidos', icon: <ClipboardCheck size={18} />, label: 'Orders' },
-        { key: 'Inventario', icon: <Box size={18} />, label: 'Inventory' },
-        { key: 'Carta', icon: <Journal size={18} />, label: 'Menu' },
-        { key: 'Proveedores', icon: <Truck size={18} />, label: 'Suppliers' },
-        { key: 'Personal', icon: <People size={18} />, label: 'Staff' },
+        { key: 'home', route: '/home', icon: <House size={18} />, label: 'Home' },
+        { key: 'orders', route: '/orders', icon: <ClipboardCheck size={18} />, label: 'Orders' },
+        { key: 'inventory', route: '/inventory', icon: <Box size={18} />, label: 'Inventory' },
+        { key: 'menu', route: '/menu', icon: <Journal size={18} />, label: 'Menu' },
+        { key: 'supplier', route: '/supplier', icon: <Truck size={18} />, label: 'Suppliers' },
+        { key: 'staff', route: '/staff', icon: <People size={18} />, label: 'Staff' },
     ];
 
-    const finanzasItems: NavItem[] = [
-        { key: 'Caja', icon: <CashCoin size={18} />, label: 'Cash Register' },
-        { key: 'Ventas', icon: <BarChart size={18} />, label: 'Sales' },
-        { key: 'Gastos', icon: <Receipt size={18} />, label: 'Expenses' },
-        { key: 'Reportes', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
+    const financeItems: NavItem[] = [
+        { key: 'cash', route: '/cash', icon: <CashCoin size={18} />, label: 'Cash Register' },
+        { key: 'sales', route: '/sales', icon: <BarChart size={18} />, label: 'Sales' },
+        { key: 'expenses', route: '/expenses', icon: <Receipt size={18} />, label: 'Expenses' },
+        { key: 'reports', route: '/reports', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
     ];
 
     const renderNavItems = (items: NavItem[]) => {
         return items.map((item: NavItem) => (
             <Nav.Link
+                as={Link}
+                to={item.route}
                 key={item.key}
                 className={`d-flex align-items-center py-2 px-3 text-dark ${
                     activeSection === item.key || item.active ? 'rounded' : ''
@@ -56,7 +60,8 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 onClick={() => onSectionChange && onSectionChange(item.key)}
                 style={{
                     cursor: 'pointer',
-                    backgroundColor: (activeSection === item.key || item.active) ? '#86e5ff' : 'transparent'
+                    backgroundColor: (activeSection === item.key || item.active) ? '#86e5ff' : 'transparent',
+                    textDecoration: 'none'
                 }}
             >
                 <span className="me-2">{item.icon}</span>
@@ -101,7 +106,6 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
-
                         <PersonCircle size={24} className="me-2 text-dark" />
                         PROFILE PICTURE
                     </Modal.Title>
@@ -120,8 +124,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
                 {renderNavItems(controlItems)}
 
                 <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
-              
-                {renderNavItems(finanzasItems)}
+                {renderNavItems(financeItems)}
             </Nav>
         </div>
     );

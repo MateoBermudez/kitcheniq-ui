@@ -16,6 +16,7 @@ import {
 import OrderTable from './OrderTable';
 import OrderSearch from './OrderSearch';
 import {createOrder, type OrderData} from '../../service/api';
+import OrderNotifications from "./OrderNotifications.tsx";
 
 interface Order {
     data: OrderData;
@@ -269,7 +270,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                     </Col>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            {/* <OrderNotifications onToast={onToast} /> */}
+                            <OrderNotifications />
                         </div>
                     </Col>
                 </Row>

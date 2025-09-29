@@ -14,7 +14,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
     });
 
     const handleLogout = () => {
-        console.log('Cerrando sesión...');
+        console.log('Logging Out...');
         if (onLogout) {
             onLogout();
         }
