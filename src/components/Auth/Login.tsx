@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../../App.scss';
+import { setAuthToken } from "../../service/api";
 
 interface LoginRequest {
     userId: string;
@@ -68,6 +69,9 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                 throw new Error('No authentication token received from server');
             }
 
+            setAuthToken(token);
+            console.log('Token saved successfully');
+
             // Extract user data from login response
             const userData = {
                 name: data.name,
@@ -75,6 +79,8 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                 entityType: data.entityType,
                 id: data.id
             };
+
+            localStorage.setItem('currentUser', JSON.stringify(userData));
 
             console.log('Mapped user data:', userData);
 

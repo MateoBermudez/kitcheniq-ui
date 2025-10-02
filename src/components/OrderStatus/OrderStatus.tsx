@@ -3,7 +3,6 @@ import { Container, Row, Col, Button, Modal, Form } from 'react-bootstrap';
 import {
     PlusCircle,
     Cart,
-    PersonFill,
     Table as TableIcon,
     CardText,
     CurrencyDollar,
@@ -18,19 +17,6 @@ import OrderSearch from './OrderSearch';
 import {createOrder, type OrderData} from '../../service/api';
 import OrderNotifications from "./OrderNotifications.tsx";
 
-interface Order {
-    data: OrderData;
-    requestTime: string;
-    requestingClient: string;
-    table: string;
-}
-
-declare global {
-    interface Window {
-        updateOrderTable?: (order: Order) => void;
-    }
-}
-
 interface MenuItem {
     id: number;
     name: string;
@@ -44,7 +30,6 @@ interface OrderItem {
 }
 
 interface NewOrder {
-    customerName: string;
     tableNumber: string;
     selectedItems: OrderItem[];
     notes: string;
@@ -68,7 +53,6 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
     const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
     const [newOrder, setNewOrder] = useState<NewOrder>({
-        customerName: '',
         tableNumber: '',
         selectedItems: [],
         notes: ''
@@ -144,7 +128,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
     };
 
     const generateOrderDetails = () => {
-        let details = `Table ${newOrder.tableNumber}\nCustomer Name: ${newOrder.customerName}`;
+        let details = `Table ${newOrder.tableNumber}`;
         if (newOrder.notes.trim()) {
             details += `\nNotes: ${newOrder.notes}`;
         }
@@ -152,11 +136,6 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
     };
 
     const handleCreateOrder = () => {
-        if (!newOrder.customerName.trim()) {
-            onToast('Customer name is required', 'error');
-            return;
-        }
-
         if (!newOrder.tableNumber) {
             onToast('Table number is required', 'error');
             return;
@@ -170,7 +149,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
         const orderDetails: string = generateOrderDetails();
 
         const components: {id: number; type: string}[] = newOrder.selectedItems.flatMap(orderItem => {
-            const componentsArray = [];
+            const componentsArray = [] as {id: number; type: string}[];
             for (let i = 0; i < orderItem.quantity; i++) {
                 componentsArray.push({
                     id: orderItem.item.id,
@@ -191,30 +170,39 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
             details: orderDetails,
             components: components,
             deliveryTime: null,
-            requestingClient: newOrder.customerName,
+            requestingClient: '', // Enviamos vacío ya que no se requiere
             table: newOrder.tableNumber,
             id: null,
             requestTime: null,
-        };
+        } as OrderData;
 
-        console.log('Sending order:', orderData);
+        console.log('Sending order (no customer name):', orderData);
 
         createOrder(orderData)
             .then(response => {
                 const data = response.data || {};
-                const orderWithLocalTime = {
-                    ...data,
-                    requestTime: localTime,
-                    requestingClient: newOrder.customerName,
-                    table: newOrder.tableNumber
-                };
-
-                (window as Window).updateOrderTable?.(orderWithLocalTime);
-
-                onToast(`Order #${data.id} created at ${localTime} for a total of $${data.price}`, 'success');
-
+                const orderId = data.id;
+                // Guardar notas localmente para specialized search
+                try {
+                    const notesRaw = localStorage.getItem('order_notes');
+                    const notesMap = notesRaw ? JSON.parse(notesRaw) : {};
+                    if (orderId != null && newOrder.notes.trim()) {
+                        notesMap[orderId] = newOrder.notes.trim();
+                        localStorage.setItem('order_notes', JSON.stringify(notesMap));
+                    }
+                } catch (e) {
+                    console.warn('No se pudieron guardar las notas localmente', e);
+                }
+                // Llamada en formato esperado por OrderTable
+                if (orderId != null) {
+                    (window as Window).updateOrderTable?.({
+                        data: { id: orderId },
+                        requestTime: localTime,
+                        tableNumber: newOrder.tableNumber
+                    });
+                }
+                onToast(`Order #${data.id} created at ${localTime} for a total of $${data.price}`,'success');
                 setNewOrder({
-                    customerName: '',
                     tableNumber: '',
                     selectedItems: [],
                     notes: ''
@@ -222,9 +210,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
             })
             .catch(error => {
                 console.error('Error creating order:', error);
-                const errorMessage = error.response?.data?.message ||
-                    error.message ||
-                    'Could not create order. Please try again.';
+                const errorMessage = error.response?.data?.message || error.message || 'Could not create order. Please try again.';
                 onToast(errorMessage, 'error');
             })
             .finally(() => {
@@ -248,7 +234,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                             variant="primary"
                             onClick={() => setShowCreateModal(true)}
                             className="d-flex align-items-center"
-                            style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}
+                            style={{ backgroundColor: '#86e5ff', borderColor: '#86e5ff', color: '#000' }}
                         >
                             <PlusCircle size={18} className="me-2" />
                             Create Order
@@ -287,22 +273,6 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 <Modal.Body>
                     <Form>
                         <Row className="mb-3">
-                            <Col md={6}>
-                                <Form.Group controlId="customerName">
-                                    <Form.Label>
-                                        <PersonFill size={16} className="me-1" />
-                                        Requesting Customer *
-                                    </Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="customerName"
-                                        value={newOrder.customerName}
-                                        onChange={handleInputChange}
-                                        placeholder="Customer name"
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
                             <Col md={6}>
                                 <Form.Group controlId="tableNumber">
                                     <Form.Label>
@@ -435,8 +405,8 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                     <Button
                         variant="primary"
                         onClick={handleCreateOrder}
-                        style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}
-                        disabled={!newOrder.customerName || !newOrder.tableNumber || newOrder.selectedItems.length === 0}
+                        style={{ backgroundColor: '#86e5ff', borderColor: '#86e5ff', color: '#000' }}
+                        disabled={!newOrder.tableNumber || newOrder.selectedItems.length === 0}
                     >
                         <CheckCircle size={16} className="me-1" />
                         Create Order - <CurrencyDollar size={16} />{calculateTotal().toFixed(1)}
