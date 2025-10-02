@@ -395,15 +395,17 @@ export const getOrdersByStatus = async (status: string) => {
 
 export const updateOrderStatus = async (id: number, status: string) => {
     try {
-        console.debug('[updateOrderStatus] Intentando actualizar', { id, status });
+        console.debug('[updateOrderStatus] Attempting update', { id, status });
+        // Enviar tanto en body como en params por compatibilidad
+        const payload = { status, orderStatus: status } as Record<string,string>;
         const response = await ordersApiClient.put<OrderResponseDTO>(
             `/order/${id}/status`,
-            null,
+            payload,
             { params: { status } }
         );
         return { data: mapBackendToFrontend(response.data) };
     } catch (error) {
-        // Intentar con fallback si el backend rechaza el enum
+        console.warn('[updateOrderStatus] Primary attempt failed', error);
         const fallbackMap: Record<string,string> = {
             'READY': 'COMPLETED',
             'DELIVERED': 'SERVED'
@@ -411,15 +413,17 @@ export const updateOrderStatus = async (id: number, status: string) => {
         const upper = status.toUpperCase();
         if (fallbackMap[upper]) {
             try {
-                console.warn('[updateOrderStatus] Fallback intentando', { original: status, fallback: fallbackMap[upper] });
+                const fb = fallbackMap[upper];
+                console.warn('[updateOrderStatus] Trying fallback', { original: status, fallback: fb });
+                const payloadFb = { status: fb, orderStatus: fb };
                 const resp2 = await ordersApiClient.put<OrderResponseDTO>(
                     `/order/${id}/status`,
-                    null,
-                    { params: { status: fallbackMap[upper] } }
+                    payloadFb,
+                    { params: { status: fb } }
                 );
                 return { data: mapBackendToFrontend(resp2.data) };
             } catch (err2) {
-                console.error(`Error updating order ${id} status (fallback también falló):`, err2);
+                console.error('[updateOrderStatus] Fallback failed', err2);
                 throw err2;
             }
         }

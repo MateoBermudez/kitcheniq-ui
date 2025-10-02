@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Badge, Button, Dropdown, Spinner, Alert, Modal, Collapse } from 'react-bootstrap';
+import { Table, Badge, Button, Spinner, Alert, Modal, Collapse, Dropdown } from 'react-bootstrap';
 import {
     ArrowClockwise,
     ThreeDots,
@@ -12,29 +12,25 @@ import {
     Plus,
     Dash
 } from 'react-bootstrap-icons';
-import { getAllOrders, updateOrderStatus, deleteOrder, type OrderComponentData } from '../../service/api';
+import { getAllOrders, updateOrderStatus, deleteOrder, type OrderComponentData, type OrderData } from '../../service/api';
 
-interface BackendOrderData {
-    orderId?: number;
-    id?: number;
-    code?: string;
-    totalPrice?: number;
-    orderBill?: string; // JSON string
-    orderDate?: string;
-    orderStatus?: string | null;
-    tableNumber?: number;
+// Evento usado para parchear la tabla cuando se crea una nueva orden desde otro componente
+interface UpdateOrderEvent {
+    data?: { id?: number | string };
     requestTime?: string;
-    deliverTime?: string | null;
+    tableNumber?: string | number;
 }
 
 declare global {
     interface Window {
-        updateOrderTable?: (newOrder: {
-            data?: { id?: number | string };
-            requestTime?: string;
-            tableNumber?: string | number;
-        }) => void;
+        updateOrderTable?: (newOrder: UpdateOrderEvent) => void;
     }
+}
+
+type RawOrder = Partial<OrderData> & {
+    orderId?: number; // en algunas respuestas crudas
+    orderStatus?: string | null;
+    deliverTime?: string | null;
 }
 
 interface OrderTableRow {
@@ -97,28 +93,36 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, []);
 
     const mapStatusToBackend = useCallback((englishStatus: string): string => {
+        // Revertido al mapping anterior (COMPLETED / SERVED) que funcionaba con el backend
         const m: Record<string,string> = {
             'Pending': 'PENDING',
             'In Progress': 'IN_PROGRESS',
-            'Ready': 'COMPLETED',      // ahora enviamos COMPLETED (enum backend)
-            'Delivered': 'SERVED',     // ahora enviamos SERVED (enum backend)
+            'Ready': 'COMPLETED',
+            'Delivered': 'SERVED',
             'Cancelled': 'CANCELLED'
         };
         return m[englishStatus] || 'PENDING';
     }, []);
 
-    const mapOrderData = useCallback((raw: any): OrderTableRow => {
+    const mapOrderData = useCallback((raw: RawOrder): OrderTableRow => {
         const orderId = raw.orderId ?? raw.id ?? null;
 
         const parseOrderItems = (orderBillJson: string): OrderComponentData[] => {
+            interface ParsedBillItem {
+                productId?: number;
+                quantity?: number;
+                productName?: string;
+                productPrice?: number;
+            }
             try {
-                const items = JSON.parse(orderBillJson) as any[];
-                return items.map((item, idx) => ({
-                    id: item.productId || idx + 1,
-                    quantity: item.quantity || 1,
+                const parsed: unknown = JSON.parse(orderBillJson);
+                if (!Array.isArray(parsed)) return [];
+                return (parsed as ParsedBillItem[]).map((item, idx) => ({
+                    id: (item.productId ?? (idx + 1)) as number,
+                    quantity: (item.quantity ?? 1) as number,
                     productId: item.productId,
                     productName: item.productName || `Product ${item.productId}`,
-                    productPrice: item.productPrice || 0,
+                    productPrice: item.productPrice ?? 0,
                     type: 'PRODUCT'
                 }));
             } catch {
@@ -169,7 +173,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         try {
             setLoading(true);
             setError(null);
-            const response = await getAllOrders() as { data: any[] };
+            const response = await getAllOrders() as { data: RawOrder[] };
             const incoming = response.data || [];
             const mappedOrders: OrderTableRow[] = incoming.map(mapOrderData);
             setOrders(mappedOrders);
@@ -196,7 +200,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, [showCancelled]);
 
     useEffect(() => {
-        window.updateOrderTable = (newOrder) => {
+        window.updateOrderTable = (newOrder: UpdateOrderEvent) => {
             const id = newOrder?.data?.id;
             if (!id) return;
             setLocalOrderTimes(times => {
@@ -223,7 +227,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
             setTimeout(() => { loadOrders().then(()=>{}); }, 250);
         };
-        return () => { delete window.updateOrderTable; };
+        return () => { window.updateOrderTable = undefined; };
     }, [loadOrders]);
 
     useEffect(() => {
@@ -295,15 +299,9 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             setUpdatingOrder(code);
 
             const backendStatus = mapStatusToBackend(newStatus);
-            let resp;
-            try {
-                resp = await updateOrderStatus(Number(order.id), backendStatus);
-            } catch (primaryErr) {
-                // No fallback necesario porque el enum backend es definitivo
-                throw primaryErr;
-            }
+            const resp = await updateOrderStatus(Number(order.id), backendStatus);
             const data = resp.data || {};
-            const backendReported = (data.status || data.orderStatus || backendStatus) as string;
+            const backendReported = (data.status ?? (data as { orderStatus?: string }).orderStatus ?? backendStatus);
             const english = mapStatusToEnglish(backendReported);
 
             const deliveryTimeUpd = english === 'Delivered'
@@ -311,6 +309,16 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 : data.deliveryTime || order.deliveryTime;
 
             setOrders(prev => prev.map(o => o.code === code ? {...o, status: english, deliveryTime: deliveryTimeUpd} : o));
+
+            // Persistir hora de entrega localmente para mostrarla aunque backend no la devuelva todavía
+            if (english === 'Delivered' && order.id != null) {
+                setLocalDeliveryTimes(prev => {
+                    const updated = { ...prev, [order.id as number]: deliveryTimeUpd || new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) };
+                    localStorage.setItem('orderDeliveryTimes', JSON.stringify(updated));
+                    return updated;
+                });
+            }
+
             onToast(`Order ${code} updated to ${english}`, 'success');
         } catch (err) {
             let msg = `Error updating order ${code}`;
@@ -410,7 +418,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
 
     return (
         <>
-            <div className="bg-white rounded">
+            <div className="bg-white rounded order-table-wrapper">
                 <div className="p-3 border-bottom bg-white">
                     <div className="d-flex justify-content-between align-items-center">
                         <h6 className="mb-0 text-muted">
@@ -496,7 +504,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                         </span>
                                     </td>
                                     <td><small className="text-muted">{order.requestTime || 'N/A'}</small></td>
-                                    <td><small className="text-muted">{order.deliveryTime || '--:--'}</small></td>
+                                    <td><small className="text-muted">{order.deliveryTime || (order.id != null && localDeliveryTimes[order.id] ? localDeliveryTimes[order.id] : '--:--')}</small></td>
                                     <td>
                                         <Dropdown>
                                             <Dropdown.Toggle
@@ -570,12 +578,6 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                                         </div>
                                                     ) : (
                                                         <div className="text-muted fst-italic">No items parsed</div>
-                                                    )}
-                                                    {order.details && (
-                                                        <details className="mt-2">
-                                                            <summary className="small">Raw orderBill JSON</summary>
-                                                            <pre className="small bg-white p-2 rounded" style={{maxHeight:200, overflow:'auto'}}>{order.details}</pre>
-                                                        </details>
                                                     )}
                                                 </div>
                                             </Collapse>
