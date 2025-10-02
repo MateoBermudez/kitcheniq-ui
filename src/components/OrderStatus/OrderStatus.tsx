@@ -39,13 +39,17 @@ interface OrderStatusProps {
     onToast: (msg: string, type?: string) => void;
 }
 
+// Actualizado con nuevos precios base
+// Productos base:
+// Hamburger: 8.5, French Fries: 3.25, Drink: 2.0
+// Combos se calculan como suma directa (sin descuento de momento)
 const menuItems: MenuItem[] = [
-    { id: 1, name: "Hamburger", price: 10.0, type: "PRODUCT" },
-    { id: 2, name: "French Fries", price: 5.0, type: "PRODUCT" },
+    { id: 1, name: "Hamburger", price: 8.5, type: "PRODUCT" },
+    { id: 2, name: "French Fries", price: 3.25, type: "PRODUCT" },
     { id: 3, name: "Drink", price: 2.0, type: "PRODUCT" },
-    { id: 4, name: "Hamburger + French Fries", price: 15.0, type: "COMBO" },
-    { id: 5, name: "Hamburger + Drink", price: 12.0, type: "COMBO" },
-    { id: 6, name: "2 Hamburgers + 2 French Fries + 2 Drinks", price: 34.0, type: "COMBO" }
+    { id: 4, name: "Hamburger + French Fries", price: 8.5 + 3.25, type: "COMBO" },            // 11.75
+    { id: 5, name: "Hamburger + Drink", price: 8.5 + 2.0, type: "COMBO" },                    // 10.5
+    { id: 6, name: "2 Hamburgers + 2 French Fries + 2 Drinks", price: 2*8.5 + 2*3.25 + 2*2.0, type: "COMBO" } // 27.5
 ];
 
 const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
@@ -119,6 +123,16 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
             ...newOrder,
             selectedItems: updatedItems
         });
+    };
+    const incrementItem = (index: number) => {
+        const updated = [...newOrder.selectedItems];
+        updated[index].quantity += 1;
+        setNewOrder({ ...newOrder, selectedItems: updated });
+    };
+    const decrementItem = (index: number) => {
+        const updated = [...newOrder.selectedItems];
+        updated[index].quantity = Math.max(1, updated[index].quantity - 1);
+        setNewOrder({ ...newOrder, selectedItems: updated });
     };
 
     const calculateTotal = () => {
@@ -263,155 +277,165 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
             </Container>
 
             {/* Modal for creating order */}
-            <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
+            <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="xl" centered className="create-order-modal">
                 <Modal.Header closeButton>
                     <Modal.Title>
                         <Cart size={20} className="me-2" />
                         CREATE NEW ORDER
                     </Modal.Title>
                 </Modal.Header>
-                <Modal.Body>
+                <Modal.Body className="pt-3 pb-4">
                     <Form>
-                        <Row className="mb-3">
-                            <Col md={6}>
-                                <Form.Group controlId="tableNumber">
-                                    <Form.Label>
-                                        <TableIcon size={16} className="me-1" />
-                                        Table Number *
+                        <Row className="g-4">
+                            <Col lg={7} className="order-form-left">
+                                <Row className="mb-3">
+                                    <Col md={6}>
+                                        <Form.Group controlId="tableNumber" className="mb-3">
+                                            <Form.Label className="fw-semibold small text-uppercase">
+                                                <TableIcon size={14} className="me-1" /> Table Number *
+                                            </Form.Label>
+                                            <Form.Control
+                                                type="number"
+                                                name="tableNumber"
+                                                value={newOrder.tableNumber}
+                                                onChange={handleInputChange}
+                                                placeholder="e.g. 12"
+                                                min="1"
+                                                required
+                                                className="shadow-sm"
+                                            />
+                                        </Form.Group>
+                                    </Col>
+                                    <Col md={6}>
+                                        <Form.Group controlId="quickAdd" className="mb-3">
+                                            <Form.Label className="fw-semibold small text-uppercase d-flex align-items-center">
+                                                <BoxSeam size={14} className="me-1" /> Quick Add
+                                            </Form.Label>
+                                            <div className="d-flex gap-2 flex-wrap">
+                                                {menuItems.filter(m => m.type === 'PRODUCT').map(p => (
+                                                    <Button key={p.id} variant="outline-primary" size="sm" className="product-chip" style={{borderColor:'#86e5ff', color:'#001f45'}} onClick={() => {
+                                                        handleItemSelect({ target: { value: String(p.id) } } as any);
+                                                    }}>{p.name} <span className="text-muted">${p.price.toFixed(2)}</span></Button>
+                                                ))}
+                                            </div>
+                                        </Form.Group>
+                                    </Col>
+                                </Row>
+                                <Form.Group controlId="selectItem" className="mb-3">
+                                    <Form.Label className="fw-semibold small text-uppercase d-flex align-items-center">
+                                        <BoxSeam size={14} className="me-1" /> Products & Combos *
                                     </Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        name="tableNumber"
-                                        value={newOrder.tableNumber}
-                                        onChange={handleInputChange}
-                                        placeholder="# Table"
-                                        min="1"
-                                        required
-                                    />
+                                    <Form.Select onChange={handleItemSelect} defaultValue="" className="shadow-sm">
+                                        <option value="">Select product or combo</option>
+                                        <optgroup label="Products">
+                                            {menuItems.filter(i => i.type === 'PRODUCT').map(i => (
+                                                <option key={i.id} value={i.id}>{i.name} - ${i.price.toFixed(2)}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="Combos">
+                                            {menuItems.filter(i => i.type === 'COMBO').map(i => (
+                                                <option key={i.id} value={i.id}>{i.name} - ${i.price.toFixed(2)}</option>
+                                            ))}
+                                        </optgroup>
+                                    </Form.Select>
                                 </Form.Group>
-                            </Col>
-                        </Row>
-
-                        <Form.Group className="mb-3" controlId="orderItems">
-                            <Form.Label>
-                                <BoxSeam size={16} className="me-1" />
-                                Products and Combos *
-                            </Form.Label>
-                            <div className="d-flex mb-2">
-                                <Form.Select
-                                    onChange={handleItemSelect}
-                                    className="me-2"
-                                    defaultValue=""
-                                >
-                                    <option value="">Select product or combo</option>
-                                    <optgroup label="PRODUCTS">
-                                        {menuItems.filter(item => item.type === "PRODUCT").map(item => (
-                                            <option key={item.id} value={item.id}>
-                                                {item.name} - ${item.price.toFixed(1)}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                    <optgroup label="COMBOS">
-                                        {menuItems.filter(item => item.type === "COMBO").map(item => (
-                                            <option key={item.id} value={item.id}>
-                                                {item.name} - ${item.price.toFixed(1)}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                </Form.Select>
-                            </div>
-
-                            <div className="border rounded p-2" style={{minHeight: '150px'}}>
-                                {newOrder.selectedItems.length > 0 ? (
-                                    <>
-                                        <div className="mb-2">
+                                <div className="order-items-wrapper border rounded-3 p-3 bg-light-subtle" style={{minHeight:'210px'}}>
+                                    {newOrder.selectedItems.length === 0 && (
+                                        <div className="text-center text-muted py-4">
+                                            <Cart size={28} className="mb-2 opacity-75" />
+                                            <div className="fw-semibold">No products or combos selected</div>
+                                            <small>Select or quick-add items to build the order</small>
+                                        </div>
+                                    )}
+                                    {newOrder.selectedItems.length > 0 && (
+                                        <div className="order-items-scroll">
                                             {newOrder.selectedItems.map((orderItem, index) => (
-                                                <div key={index} className="d-flex justify-content-between align-items-center border-bottom py-2">
+                                                <div key={index} className="d-flex align-items-center py-2 order-line-item border-bottom">
                                                     <div className="flex-grow-1">
-                                                        <div className="d-flex align-items-center">
-                                                            <strong>{orderItem.item.name}</strong>
-                                                            {orderItem.item.type === "COMBO" && (
-                                                                <span className="badge bg-success ms-2">Combo</span>
-                                                            )}
+                                                        <div className="d-flex align-items-center fw-semibold">
+                                                            {orderItem.item.name}
+                                                            {orderItem.item.type === 'COMBO' && <span className="badge bg-success ms-2">Combo</span>}
                                                         </div>
-                                                        <small className="text-muted">
-                                                            <CurrencyDollar size={12} />
-                                                            {orderItem.item.price.toFixed(1)} each
-                                                        </small>
+                                                        <small className="text-muted">${orderItem.item.price.toFixed(2)} each</small>
                                                     </div>
-                                                    <div className="d-flex align-items-center">
-                                                        <Form.Control
-                                                            type="number"
-                                                            value={orderItem.quantity}
-                                                            onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                                            min="1"
-                                                            style={{ width: '70px' }}
-                                                            className="me-2"
-                                                        />
-                                                        <span className="me-2 fw-bold">
-                                                            <CurrencyDollar size={14} />
-                                                            {(orderItem.item.price * orderItem.quantity).toFixed(1)}
-                                                        </span>
-                                                        <Button
-                                                            variant="outline-danger"
-                                                            size="sm"
-                                                            onClick={() => handleRemoveItem(index)}
-                                                        >
-                                                            <Trash size={14} />
-                                                        </Button>
+                                                    <div className="d-flex align-items-center gap-1 me-3 quantity-box">
+                                                        <Button variant="light" size="sm" disabled={orderItem.quantity === 1} onClick={() => decrementItem(index)} className="px-2 border">-</Button>
+                                                        <Form.Control value={orderItem.quantity} onChange={(e)=>handleQuantityChange(index,e.target.value)} type="number" min={1} className="text-center px-1" style={{width:'56px'}} />
+                                                        <Button variant="light" size="sm" onClick={() => incrementItem(index)} className="px-2 border">+</Button>
                                                     </div>
+                                                    <div className="text-end me-3 fw-semibold small">${(orderItem.item.price * orderItem.quantity).toFixed(2)}</div>
+                                                    <Button variant="outline-danger" size="sm" onClick={() => handleRemoveItem(index)}>
+                                                        <Trash size={14} />
+                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="text-end border-top pt-2">
-                                            <h5 className="mb-0">
-                                                Total: <span className="text-primary">
-                                                    <CurrencyDollar size={18} />
-                                                {calculateTotal().toFixed(1)}
-                                                </span>
-                                            </h5>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="text-center text-muted p-3">
-                                        <Cart size={24} className="mb-2" />
-                                        <div>No products or combos selected</div>
+                                    )}
+                                </div>
+                                <Form.Group controlId="notes" className="mt-4">
+                                    <Form.Label className="fw-semibold small text-uppercase d-flex align-items-center">
+                                        <CardText size={14} className="me-1" /> Notes
+                                    </Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        name="notes"
+                                        value={newOrder.notes}
+                                        onChange={handleInputChange}
+                                        placeholder="Special instructions for the order (optional)"
+                                        className="shadow-sm"
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col lg={5} className="d-flex flex-column">
+                                <div className="h-100 d-flex flex-column summary-card border rounded-3 p-3 shadow-sm bg-white position-relative">
+                                    <h6 className="fw-bold mb-3 d-flex align-items-center"><CurrencyDollar size={16} className="me-2" /> Order Summary</h6>
+                                    <div className="flex-grow-1 mb-3 small">
+                                        {newOrder.selectedItems.length === 0 && <div className="text-muted fst-italic">No items yet</div>}
+                                        {newOrder.selectedItems.length > 0 && (
+                                            <div className="summary-lines">
+                                                {newOrder.selectedItems.map((it, i) => (
+                                                    <div key={i} className="d-flex justify-content-between border-bottom py-1">
+                                                        <span>{it.quantity} x {it.item.name}</span>
+                                                        <span>${(it.item.price * it.quantity).toFixed(2)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        </Form.Group>
-
-                        <Form.Group className="mb-3" controlId="notes">
-                            <Form.Label>
-                                <CardText size={16} className="me-1" />
-                                Notes
-                            </Form.Label>
-                            <Form.Control
-                                as="textarea"
-                                rows={3}
-                                name="notes"
-                                value={newOrder.notes}
-                                onChange={handleInputChange}
-                                placeholder="Special instructions for the order"
-                            />
-                        </Form.Group>
+                                    <div className="border-top pt-3">
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <span className="fw-semibold">Items</span>
+                                            <span>{newOrder.selectedItems.reduce((s,i)=> s + i.quantity, 0)}</span>
+                                        </div>
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <span className="fw-semibold">Subtotal</span>
+                                            <span>${calculateTotal().toFixed(2)}</span>
+                                        </div>
+                                        <div className="d-flex justify-content-between align-items-center mb-3">
+                                            <span className="fw-semibold">Total</span>
+                                            <span className="fs-5 text-primary fw-bold">${calculateTotal().toFixed(2)}</span>
+                                        </div>
+                                        <div className="d-grid gap-2">
+                                            <Button
+                                                variant="primary"
+                                                onClick={handleCreateOrder}
+                                                style={{ backgroundColor: '#86e5ff', borderColor: '#86e5ff', color: '#000' }}
+                                                disabled={!newOrder.tableNumber || newOrder.selectedItems.length === 0}
+                                            >
+                                                <CheckCircle size={16} className="me-2" />
+                                                Create Order - ${calculateTotal().toFixed(2)}
+                                            </Button>
+                                            <Button variant="outline-secondary" onClick={() => setShowCreateModal(false)}>
+                                                <XCircle size={16} className="me-2" /> Cancel
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Col>
+                        </Row>
                     </Form>
                 </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
-                        <XCircle size={16} className="me-1" />
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="primary"
-                        onClick={handleCreateOrder}
-                        style={{ backgroundColor: '#86e5ff', borderColor: '#86e5ff', color: '#000' }}
-                        disabled={!newOrder.tableNumber || newOrder.selectedItems.length === 0}
-                    >
-                        <CheckCircle size={16} className="me-1" />
-                        Create Order - <CurrencyDollar size={16} />{calculateTotal().toFixed(1)}
-                    </Button>
-                </Modal.Footer>
             </Modal>
         </div>
     );
