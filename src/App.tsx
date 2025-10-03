@@ -11,6 +11,7 @@ import {useToast} from "./components/hooks/useToast.ts";
 import Inventory from './views/Inventory';
 import Supplier from "./views/Supplier.tsx";
 import './App.scss';
+import { getUserInfo } from './service/api';
 
 interface User {
     id: string;
@@ -30,6 +31,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 function AuthProvider({ children }: { children: ReactNode }) {
+    // State for auth token, user object and loading indicator
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -39,9 +41,27 @@ function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const storedToken = localStorage.getItem('authToken');
                 const storedUserData = localStorage.getItem('userData');
+                const lastUserId = localStorage.getItem('lastUserId');
                 if (storedToken) {
                     setToken(storedToken);
-                    const userData = storedUserData ? JSON.parse(storedUserData) : {};
+                    let userData = storedUserData ? JSON.parse(storedUserData) : {};
+
+                    // If name or type missing, try refreshing from backend
+                    if ((!userData.name || !userData.type) && lastUserId) {
+                        try {
+                            const info = await getUserInfo(lastUserId);
+                            userData = {
+                                ...userData,
+                                id: info.id || info.userId || lastUserId,
+                                name: info.name || info.username || userData.name,
+                                type: info.type || info.role || userData.type
+                            };
+                            localStorage.setItem('userData', JSON.stringify(userData));
+                        } catch (e) {
+                            console.warn('Could not refresh user info:', e);
+                        }
+                    }
+
                     setUser({
                         id: userData.id || 'current_user',
                         name: userData.name,
@@ -115,10 +135,23 @@ function MainLayout() {
     const { toasts, removeToast, showInfo, showSuccess } : ToastContextType = useToast();
     const { logout, user } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
     const [activeSection, setActiveSection] = useState('orders');
+
+    const isSupplierUser = user?.type === 'SUPPLIER';
 
     useEffect(() => {
         const path = location.pathname;
+        if (isSupplierUser) {
+            // Force redirect to /supplier if accessing any other path
+            if (path !== '/supplier') {
+                navigate('/supplier', { replace: true });
+                setActiveSection('supplier');
+                return;
+            }
+            setActiveSection('supplier');
+            return;
+        }
         if (path.includes('/orders')) {
             setActiveSection('orders');
         } else if (path.includes('/inventory')) {
@@ -140,7 +173,7 @@ function MainLayout() {
         } else if (path.includes('/home')) {
             setActiveSection('home');
         }
-    }, [location.pathname]);
+    }, [location.pathname, isSupplierUser, navigate]);
 
     const mappedToasts = toasts.map(t => ({
         ...t,
@@ -171,21 +204,29 @@ function MainLayout() {
                     userType={user?.type}
                 />
                 <div className="flex-grow-1">
-                    <Routes>
-                        <Route path="/" element={<Navigate to="/orders" replace />} />
-                        <Route path="/home" element={<div>Home Page</div>} />
-                        <Route path="/orders" element={
-                            <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
-                        } />
-                        <Route path="/inventory" element={<Inventory key="inventory" />} />
-                        <Route path="/supplier" element={<Supplier key="supplier" />} />
-                        <Route path="/menu" element={<div key="menu">Menu Page</div>} />
-                        <Route path="/staff" element={<div key="staff">Staff Page</div>} />
-                        <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
-                        <Route path="/sales" element={<div key="sales">Sales Page</div>} />
-                        <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
-                        <Route path="/reports" element={<div key="reports">Reports Page</div>} />
-                    </Routes>
+                    {isSupplierUser ? (
+                        <Routes>
+                            <Route path="/supplier" element={<Supplier key="supplier" />} />
+                            <Route path="*" element={<Navigate to="/supplier" replace />} />
+                        </Routes>
+                    ) : (
+                        <Routes>
+                            <Route path="/" element={<Navigate to="/orders" replace />} />
+                            <Route path="/home" element={<div>Home Page</div>} />
+                            <Route path="/orders" element={
+                                <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
+                            } />
+                            <Route path="/inventory" element={<Inventory key="inventory" />} />
+                            <Route path="/supplier" element={<Supplier key="supplier" />} />
+                            <Route path="/menu" element={<div key="menu">Menu Page</div>} />
+                            <Route path="/staff" element={<div key="staff">Staff Page</div>} />
+                            <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
+                            <Route path="/sales" element={<div key="sales">Sales Page</div>} />
+                            <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
+                            <Route path="/reports" element={<div key="reports">Reports Page</div>} />
+                            <Route path="*" element={<Navigate to="/orders" replace />} />
+                        </Routes>
+                    )}
                 </div>
                 <ToastContainer
                     toasts={mappedToasts}
