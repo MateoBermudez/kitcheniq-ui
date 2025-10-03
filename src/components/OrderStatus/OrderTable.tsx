@@ -308,16 +308,22 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 ? (data.deliveryTime ? (() => { try { const dt = new Date(data.deliveryTime); return isNaN(dt.getTime()) ? order.deliveryTime : dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}); } catch { return order.deliveryTime; } })() : new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}))
                 : data.deliveryTime || order.deliveryTime;
 
+            const prevStatus = order.status;
             setOrders(prev => prev.map(o => o.code === code ? {...o, status: english, deliveryTime: deliveryTimeUpd} : o));
 
-            // Persistir hora de entrega localmente para mostrarla aunque backend no la devuelva todavía
-            if (english === 'Delivered' && order.id != null) {
-                setLocalDeliveryTimes(prev => {
-                    const updated = { ...prev, [order.id as number]: deliveryTimeUpd || new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) };
-                    localStorage.setItem('orderDeliveryTimes', JSON.stringify(updated));
-                    return updated;
-                });
-            }
+            // Evento global para notificaciones en tiempo real
+            try {
+                window.dispatchEvent(new CustomEvent('order-status-changed', {
+                    detail: {
+                        id: order.id,
+                        code: order.code,
+                        previousStatus: prevStatus,
+                        newStatus: english,
+                        deliveryTime: deliveryTimeUpd,
+                        timestamp: Date.now()
+                    }
+                }));
+            } catch (e) { /* noop */ }
 
             onToast(`Order ${code} updated to ${english}`, 'success');
         } catch (err) {
