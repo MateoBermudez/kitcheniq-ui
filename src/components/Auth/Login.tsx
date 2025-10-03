@@ -83,7 +83,6 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
             if (!token) {
                 throw new Error('No authentication token received from server');
             }
-            setAuthToken(token);
 
             // Fetch detailed user info
             let fetchedUserName: string | undefined;
@@ -114,6 +113,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
             if (onLoginSuccess) {
                 onLoginSuccess(token, userData);
             }
+
         } catch (err) {
             console.error('Login error:', err);
             if (!error) {
