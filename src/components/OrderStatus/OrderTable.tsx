@@ -73,7 +73,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     });
     const [showCancelled, setShowCancelled] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-    // Estado nuevo: filtro de estado y recientes
+    // New state variables: status filter and recent highlight set
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
     const [recentOrders, setRecentOrders] = useState<Set<number>>(new Set());
 
@@ -132,9 +132,9 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
 
         const formatTime = (iso: string | null | undefined): string | null => {
             if (!iso) return null;
-            // Si ya viene en formato HH:MM o HH:MM:SS, lo aceptamos directamente
+            // If it already comes formatted as HH:MM or HH:MM:SS, accept it directly
             if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(iso)) {
-                return iso.length === 8 ? iso.substring(0,5) : iso; // recorta a HH:MM si trae segundos
+                return iso.length === 8 ? iso.substring(0,5) : iso; // trim to HH:MM if it includes seconds
             }
             const d = new Date(iso);
             if (isNaN(d.getTime())) return null;

@@ -177,7 +177,9 @@ ordersApiClient.interceptors.request.use(
 const handleAuthError = (error: unknown) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
         removeAuthToken();
-        window.location.href = '/login'; // redirect to login page
+        try {
+            window.dispatchEvent(new CustomEvent('auth-expired'));
+        } catch { /* ignore */ }
     }
     return Promise.reject(error);
 };

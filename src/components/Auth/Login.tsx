@@ -59,7 +59,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
             if (!response.ok) {
                 // Friendly messages for common auth failures
                 if (response.status === 401 || response.status === 403) {
-                    setError('Credenciales incorrectas');
+                    setError('Incorrect credentials');
                     return;
                 }
                 let backendMessage = '';
@@ -84,7 +84,10 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
                 throw new Error('No authentication token received from server');
             }
 
-            // Fetch detailed user info
+            // IMPORTANT: store token immediately so subsequent API calls include Authorization header
+            setAuthToken(token);
+
+            // Fetch detailed user info now that token is stored
             let fetchedUserName: string | undefined;
             let fetchedUserType: string | undefined;
             let fetchedUserId: string | undefined;
@@ -109,6 +112,10 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
 
             localStorage.setItem('userData', JSON.stringify(userData));
             localStorage.setItem('lastUserId', fetchedUserId || '');
+            // Backward compatibility key expected by some legacy components
+            if (fetchedUserId) {
+                localStorage.setItem('userId', fetchedUserId);
+            }
 
             if (onLoginSuccess) {
                 onLoginSuccess(token, userData);
@@ -117,7 +124,7 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
         } catch (err) {
             console.error('Login error:', err);
             if (!error) {
-                setError(err instanceof Error ? err.message : 'Error de conexión');
+                setError(err instanceof Error ? err.message : 'Connection error');
             }
         } finally {
             setIsLoading(false);

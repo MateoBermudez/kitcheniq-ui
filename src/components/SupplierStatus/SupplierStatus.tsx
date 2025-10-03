@@ -47,14 +47,21 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         setLoading(true);
         setError(null);
         try {
-            const userId: string | null = localStorage.getItem('userId');
-            if (!userId) {
-                // /login or /
-                window.location.href = '/login';
+            // Derive supplier id from multiple possible storage keys
+            const userDataRaw = localStorage.getItem('userData');
+            let parsed;
+            try { parsed = userDataRaw ? JSON.parse(userDataRaw) : null; } catch { parsed = null; }
+            const candidateId = parsed?.id || parsed?.userId || localStorage.getItem('lastUserId') || localStorage.getItem('userId');
+
+            if (!candidateId) {
+                // No ID available – do NOT redirect (avoid loop); just show message
+                setSupplierOrders([]);
+                setError('No supplier identifier found in session');
+                onToast('Missing supplier identifier', 'warning');
                 return;
             }
-            const response = await getAllSupplierItems(userId);
-            const data = response.data ?? response;
+            const response = await getAllSupplierItems(String(candidateId));
+            const data = (response as any).data ?? response;
             let orders: SupplierOrder[] = [];
             if (Array.isArray(data)) {
                 orders = data;
