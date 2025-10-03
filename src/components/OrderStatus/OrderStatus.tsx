@@ -22,7 +22,7 @@ interface OrderItem { item: MenuItem; quantity: number; }
 interface NewOrder { tableNumber: string; selectedItems: OrderItem[]; notes: string; }
 interface OrderStatusProps { onToast: (msg: string, type?: string) => void; }
 
-// Productos base y combos
+// Menu items (base products + combos)
 const menuItems: MenuItem[] = [
     { id: 1, name: 'Hamburger', price: 8.5, type: 'PRODUCT' },
     { id: 2, name: 'French Fries', price: 3.25, type: 'PRODUCT' },
@@ -32,7 +32,7 @@ const menuItems: MenuItem[] = [
     { id: 6, name: '2 Hamburgers + 2 French Fries + 2 Drinks', price: (2 * 8.5) + (2 * 3.25) + (2 * 2.0), type: 'COMBO' }
 ];
 
-// Desglose de combos en productos base
+// Combo breakdown to product components (used to expand combos into individual product quantities)
 const comboComponents: Record<number, { productId: number; quantity: number }[]> = {
     4: [ { productId: 1, quantity: 1 }, { productId: 2, quantity: 1 } ],
     5: [ { productId: 1, quantity: 1 }, { productId: 3, quantity: 1 } ],
@@ -50,6 +50,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
         return () => clearInterval(intervalId);
     }, []);
 
+    // Add product (or expand combo) by id
     const addItemById = (id: number) => {
         const selectedItem = menuItems.find(m => m.id === id);
         if (!selectedItem) return;
@@ -271,9 +272,9 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                                         <div className="d-flex justify-content-between align-items-center mb-2"><span className="fw-semibold">Subtotal</span><span>${total.toFixed(2)}</span></div>
                                         <div className="d-flex justify-content-between align-items-center mb-3"><span className="fw-semibold">Total</span><span className="fs-5 text-primary fw-bold">${total.toFixed(2)}</span></div>
                                         {isCreateDisabled && (
-                                            <div className="alert alert-warning py-2 small mb-3">
-                                                {newOrder.selectedItems.length === 0 ? 'Add at least one product.' : 'Enter a table number (use 0 for Takeout).'}
-                                            </div>
+                                          <div className="alert alert-warning py-2 small mb-3">
+                                            {newOrder.selectedItems.length === 0 ? 'Add at least one product.' : 'Enter a table number (use 0 for Takeout).'}
+                                          </div>
                                         )}
                                         <div className="d-grid gap-2">
                                             <Button variant="primary" onClick={handleCreateOrder} style={{ backgroundColor: '#86e5ff', borderColor: '#86e5ff', color: '#000' }} disabled={isCreateDisabled}>

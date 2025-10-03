@@ -7,13 +7,13 @@ interface Order {
     id: number;
     code?: string;
     status?: string;
-    details?: string; // puede contener JSON con orderBill
-    price?: number; // precio directo
-    totalPrice?: number; // fallback si price no existe
-    orderBill?: string; // para compatibilidad
+    details?: string;
+    price?: number;
+    totalPrice?: number; // fallback if price is absent
+    orderBill?: string;
     orderDate?: string;
-    items?: string[]; // lista formateada de items
-    notes?: string; // notas locales almacenadas
+    items?: string[];
+    notes?: string; // locally stored notes (from localStorage)
 }
 
 interface OrderBackend {
@@ -29,7 +29,7 @@ interface OrderBackend {
     orderDate?: string;
 }
 
-// New helper to normalize backend statuses to frontend canonical ones
+// Normalize backend status variants to canonical frontend representation
 const normalizeBackendStatus = (status?: string): string => {
     const s = status?.toUpperCase() || 'PENDING';
     switch (s) {
@@ -47,7 +47,7 @@ interface OrderSearchProps {
 }
 
 const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
-    // Estado ahora solo maneja code
+    // Local search form (only code supported currently)
     const [searchForm, setSearchForm] = useState<{ code: string }>({
         code: ''
     });
@@ -159,12 +159,11 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                     }
                 }
             } else {
-                // Sin código => obtener todas
+                // get all orders
                 const response = await getAllOrders();
                 const arr: OrderBackend[] = response.data as OrderBackend[];
                 results = arr.map(mapBackendToOrder);
             }
-            // Inyectar notas locales
             try {
                 const notesRaw = localStorage.getItem('order_notes');
                 if (notesRaw) {
@@ -203,13 +202,12 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
     };
 
     useEffect(() => {
-        // Al montar cargar todas automáticamente para experiencia más útil
+        // Auto-load all orders on first mount for immediate context
         (async () => {
             if (!hasSearched && searchResults.length === 0) {
                 await performSearch();
             }
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const getStatusVisualStyle = (status: string | undefined): { bg: string; border: string; text: string; left: string } => {
@@ -322,7 +320,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
                                     <div className="mb-2">
                                         <div className="d-flex align-items-center text-muted mb-1">
-                                            {/* Se omite Person / Customer name */}
+                                            {/* Table badge if present */}
                                             {extractTableNumber(order.details) && (
                                                 <span className="badge bg-light text-dark">
                                                     {extractTableNumber(order.details)}

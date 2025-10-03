@@ -14,7 +14,7 @@ import {
 } from 'react-bootstrap-icons';
 import { getAllOrders, updateOrderStatus, deleteOrder, type OrderComponentData, type OrderData } from '../../service/api';
 
-// Evento usado para parchear la tabla cuando se crea una nueva orden desde otro componente
+// Event hook used by external components to inject a newly created order placeholder
 interface UpdateOrderEvent {
     data?: { id?: number | string };
     requestTime?: string;
@@ -28,7 +28,7 @@ declare global {
 }
 
 type RawOrder = Partial<OrderData> & {
-    orderId?: number; // en algunas respuestas crudas
+    orderId?: number; // sometimes returned as orderId instead of id
     orderStatus?: string | null;
     deliverTime?: string | null;
 }
@@ -93,7 +93,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, []);
 
     const mapStatusToBackend = useCallback((englishStatus: string): string => {
-        // Revertido al mapping anterior (COMPLETED / SERVED) que funcionaba con el backend
+        // Backend currently expects these canonical codes
         const m: Record<string,string> = {
             'Pending': 'PENDING',
             'In Progress': 'IN_PROGRESS',
@@ -188,7 +188,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, [mapOrderData, onToast]);
 
     useEffect(() => {
-        // Cargar preferencia showCancelled
+        // Load saved user preference for showing cancelled orders
         const storedShowCancelled = localStorage.getItem('pref_show_cancelled');
         if (storedShowCancelled) {
             setShowCancelled(storedShowCancelled === 'true');
@@ -209,13 +209,13 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 localStorage.setItem('orderCreationTimes', JSON.stringify(updated));
                 return updated;
             });
-            // Marcar como orden reciente
+            // Mark as recent (temporary highlight)
             setRecentOrders(prev => {
                 const next = new Set(prev);
                 if (typeof id === 'number') next.add(id); else next.add(Number(id));
                 return next;
             });
-            // Remover highlight después de 30s
+            // Remove highlight after 30s
             setTimeout(() => {
                 setRecentOrders(prev => {
                     const next = new Set(prev);
@@ -223,7 +223,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                     return next;
                 });
             }, 30000);
-            // Patch immediate update
+            // Optimistic patch for fast UI feedback
             setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
             setTimeout(() => { loadOrders().then(()=>{}); }, 250);
         };
@@ -311,7 +311,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             const prevStatus = order.status;
             setOrders(prev => prev.map(o => o.code === code ? {...o, status: english, deliveryTime: deliveryTimeUpd} : o));
 
-            // Evento global para notificaciones en tiempo real
+            // Fire global event for real‑time notification component
             try {
                 window.dispatchEvent(new CustomEvent('order-status-changed', {
                     detail: {
@@ -346,9 +346,9 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             setDeletingOrder(orderToDelete.code);
             setShowDeleteModal(false);
             await deleteOrder(Number(orderToDelete.id));
-            // Marcar como eliminado (soft delete) para ocultarlo en futuras cargas
+            // Remove locally (soft delete)
             setOrders(prevOrders => prevOrders.filter(o => o.code !== orderToDelete.code));
-            // Limpiar caches de tiempos / mesa
+            // Purge cached timing metadata
             const newTimes = { ...localOrderTimes };
             if (orderToDelete.id !== null) delete newTimes[orderToDelete.id];
             setLocalOrderTimes(newTimes);

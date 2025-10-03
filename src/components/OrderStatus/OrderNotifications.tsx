@@ -49,7 +49,7 @@ const OrderNotifications: React.FC = () => {
     const lastOrderStatesRef = useRef<Record<string, LastOrderState | number>>({});
     const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Cargar preferencias almacenadas
+    // Load persisted thresholds
     useEffect(() => {
         try {
             const raw = localStorage.getItem(LS_THRESHOLDS_KEY);
@@ -72,9 +72,10 @@ const OrderNotifications: React.FC = () => {
 
     const addNotification = useCallback(
         (message: string, type: NotificationType = 'info', title: string | null = null, autoRemove: boolean = true): string => {
+            // Deduplicate identical notification within the last 15s
             console.log('Adding notification:', message, type, title);
 
-            // Evitar duplicados exactos recientes (últimos 15s)
+            // Avoid exact duplicates in the recent past (last 15s)
             const now = Date.now();
             const duplicate = notifications.find(n => n.message === message && n.type === type && (now - n.timestamp.getTime()) < 15000);
             if (duplicate) return duplicate.id;
@@ -198,7 +199,7 @@ const OrderNotifications: React.FC = () => {
                  }
 
                  if (orderStatus === 'PENDING') {
-                     const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // in minutes
+                     const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // minutes elapsed
 
                     if (timeDiff >= pendingWarningMin && !lastKnownState.notified?.pendingTooLong) {
                          addNotification(
@@ -234,7 +235,7 @@ const OrderNotifications: React.FC = () => {
                  }
 
                  if (orderStatus === 'READY') {
-                     const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // in minutes
+                     const timeDiff = (currentTimestamp - lastKnownState.timestamp) / 60000; // minutes elapsed
 
                     if (timeDiff >= readyWarningMin && !lastKnownState.notified?.readyTooLong) {
                          addNotification(
@@ -300,13 +301,13 @@ const OrderNotifications: React.FC = () => {
     }, [addNotification, pendingWarningMin, pendingUrgentMin, readyWarningMin]);
 
     useEffect(() => {
-        // Primera carga
+        // Initial load
         checkOrdersStatus().catch(()=>{});
 
-        // Intervalo más frecuente para detectar aging
+        // Poll aging every minute
         checkIntervalRef.current = setInterval(checkOrdersStatus, POLL_INTERVAL_MS);
 
-        // Listeners de eventos en tiempo real
+        // Real-time event listeners (status transitions + creation)
         const handleStatusChanged = (e: Event) => {
             const detail = (e as CustomEvent).detail as {
                 id?: number;
@@ -328,7 +329,7 @@ const OrderNotifications: React.FC = () => {
             } else if (newStatus === 'IN PROGRESS') {
                 addNotification(`${orderCode} is now in progress.`, 'info', 'Order Updated', true);
             }
-            // Actualizar estado base para aging re-calculations
+            // Reset aging baseline on status change
             const key = detail.id ?? orderCode;
             lastOrderStatesRef.current[key] = {
                 status: newStatus,
@@ -346,6 +347,7 @@ const OrderNotifications: React.FC = () => {
             if (!detail) return;
             const code = detail.code || (detail.id ? `ORD-${detail.id}` : 'ORDER');
             addNotification(`${code} created successfully.`, 'info', 'Order Created');
+            // Initialize baseline for new order
             const key = detail.id ?? code;
             lastOrderStatesRef.current[key] = {
                 status: 'PENDING',
@@ -371,7 +373,7 @@ const OrderNotifications: React.FC = () => {
 
     const handleSaveSettings = (e: React.FormEvent) => {
         e.preventDefault();
-        // Validaciones simples
+        // Basic validation
         if (pendingWarningMin < 1 || pendingUrgentMin <= pendingWarningMin || readyWarningMin < 1) {
             addNotification('Invalid thresholds. Ensure urgent > warning and all > 0.', 'danger', 'Settings Error');
             return;
@@ -444,7 +446,7 @@ const OrderNotifications: React.FC = () => {
                                 {notif.code}
                             </Alert.Heading>
                             <p className="mb-2 small">{notif.message}</p>
-                            {/* Timestamp eliminado según requerimiento */}
+                            {/* Timestamp removed intentionally */}
                         </div>
                     </div>
                 </Alert>
