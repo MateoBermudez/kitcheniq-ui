@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Button, InputGroup, Row, Col, Card, Spinner, Alert } from 'react-bootstrap';
-import { Search, Clock, Person, CurrencyDollar } from 'react-bootstrap-icons';
-import { getOrderById, getOrdersByStatus, getAllOrders } from '../../service/api';
+import { Search, Clock, CurrencyDollar } from 'react-bootstrap-icons';
+import { getOrderById, getAllOrders } from '../../service/api';
 
 interface Order {
     id: number;
@@ -9,19 +9,47 @@ interface Order {
     status?: string;
     details?: string;
     price?: number;
-    bill?: string;
+    totalPrice?: number; // fallback if price is absent
+    orderBill?: string;
     orderDate?: string;
     items?: string[];
+    notes?: string; // locally stored notes (from localStorage)
 }
+
+interface OrderBackend {
+    id?: number;
+    orderId?: number;
+    code?: string;
+    orderStatus?: string;
+    status?: string;
+    details?: string;
+    orderBill?: string;
+    price?: number;
+    totalPrice?: number;
+    orderDate?: string;
+}
+
+// Normalize backend status variants to canonical frontend representation
+const normalizeBackendStatus = (status?: string): string => {
+    const s = status?.toUpperCase() || 'PENDING';
+    switch (s) {
+        case 'COMPLETED':
+            return 'READY';
+        case 'SERVED':
+            return 'DELIVERED';
+        default:
+            return s; // PENDING, IN_PROGRESS, READY, DELIVERED, CANCELLED
+    }
+};
 
 interface OrderSearchProps {
     onSearch?: (results: Order[]) => void;
 }
 
 const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
-    const [searchForm, setSearchForm] = useState<{ code: string; status: string }>({
-        code: '',
-        status: ''
+    // Local search form (only code supported currently)
+    const [searchForm, setSearchForm] = useState<{ code: string }>({
+        code: ''
     });
     const [searchResults, setSearchResults] = useState<Order[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -33,12 +61,6 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
             ...prev,
             [field]: value
         }));
-    };
-
-    const extractCustomerName = (details: string | undefined): string => {
-        if (!details) return 'Customer not specified';
-        const match = details.match(/Customer Name:\s*([^\n]+)/);
-        return match ? match[1].trim() : 'Customer not specified';
     };
 
     const extractTableNumber = (details: string | undefined): string => {
@@ -61,25 +83,13 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
         }
     };
 
-    const getStatusBadgeColor = (status: string | undefined): string => {
-        switch (status?.toUpperCase()) {
-            case 'PENDING':
-                return 'warning';
-            case 'READY':
-                return 'success';
-            case 'DELIVERED':
-                return 'primary';
-            case 'CANCELLED':
-                return 'danger';
-            default:
-                return 'secondary';
-        }
-    };
-
     const translateStatus = (status: string | undefined): string => {
-        switch (status?.toUpperCase()) {
+        const s = normalizeBackendStatus(status);
+        switch (s) {
             case 'PENDING':
                 return 'Pending';
+            case 'IN_PROGRESS':
+                return 'In Progress';
             case 'READY':
                 return 'Ready';
             case 'DELIVERED':
@@ -87,9 +97,48 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
             case 'CANCELLED':
                 return 'Cancelled';
             default:
-                return status || 'Unknown';
+                return 'Unknown';
         }
     };
+
+    const parseItems = (raw: string | undefined): string[] => {
+        if (!raw) return [];
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                return parsed.map((d) => {
+                    if (typeof d === 'object' && d !== null) {
+                        const rec = d as Record<string, unknown>;
+                        const name = (rec.productName || rec.name || `Item ${rec.productId || ''}`).toString();
+                        const qtyRaw = rec.quantity;
+                        const qty = typeof qtyRaw === 'number' ? qtyRaw : 1;
+                        return `${name} x${qty}`;
+                    }
+                    return 'Item';
+                });
+            }
+            return [];
+        } catch {
+            return [];
+        }
+    };
+
+    const mapBackendToOrder = useCallback((o: OrderBackend): Order => {
+        const id = o.id ?? o.orderId ?? 0;
+        const rawStatus = o.status || o.orderStatus;
+        const normalized = normalizeBackendStatus(rawStatus);
+        return {
+            id,
+            code: o.code || `ORD-${id}`,
+            status: normalized,
+            details: o.details || o.orderBill,
+            orderBill: o.orderBill,
+            price: o.price,
+            totalPrice: o.totalPrice,
+            orderDate: o.orderDate,
+            items: parseItems(o.orderBill || o.details)
+        };
+    }, []);
 
     const performSearch = useCallback(async (): Promise<void> => {
         setLoading(true);
@@ -100,8 +149,8 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
             if (searchForm.code.trim()) {
                 try {
                     const response = await getOrderById(parseInt(searchForm.code));
-                    const order: Order = response.data;
-                    results = [order];
+                    const backend: OrderBackend = response.data;
+                    results = [mapBackendToOrder(backend)];
                 } catch (err) {
                     if (err && typeof err === 'object' && 'response' in err && (err as { response?: { status?: number } }).response?.status === 404) {
                         results = [];
@@ -109,12 +158,20 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                         setError('Error searching by code');
                     }
                 }
-            } else if (searchForm.status.trim()) {
-                const response = await getOrdersByStatus(searchForm.status);
-                results = response.data;
             } else {
+                // get all orders
                 const response = await getAllOrders();
-                results = response.data;
+                const arr: OrderBackend[] = response.data as OrderBackend[];
+                results = arr.map(mapBackendToOrder);
+            }
+            try {
+                const notesRaw = localStorage.getItem('order_notes');
+                if (notesRaw) {
+                    const notesMap = JSON.parse(notesRaw) as Record<string, string>;
+                    results = results.map(r => ({ ...r, notes: notesMap[r.id] }));
+                }
+            } catch (e) {
+                console.warn('No se pudieron leer notas locales', e);
             }
             setSearchResults(results);
             if (onSearch) onSearch(results);
@@ -123,7 +180,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
         } finally {
             setLoading(false);
         }
-    }, [searchForm, onSearch]);
+    }, [searchForm, onSearch, mapBackendToOrder]);
 
     const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -134,8 +191,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
     const handleClear = () => {
         setSearchForm({
-            code: '',
-            status: ''
+            code: ''
         });
         setSearchResults([]);
         setError('');
@@ -146,49 +202,58 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
     };
 
     useEffect(() => {
-        if (searchForm.status && !searchForm.code) {
-            (async () => {
+        // Auto-load all orders on first mount for immediate context
+        (async () => {
+            if (!hasSearched && searchResults.length === 0) {
                 await performSearch();
-            })();
+            }
+        })();
+    }, []);
+
+    const getStatusVisualStyle = (status: string | undefined): { bg: string; border: string; text: string; left: string } => {
+        const s = normalizeBackendStatus(status).toLowerCase();
+        switch (s) {
+            case 'pending':
+                return { bg: '#feffd4', border: '#c2c838', text: '#000000', left: '#c2c838' };
+            case 'in_progress':
+            case 'in progress':
+                return { bg: '#FFE4B5', border: '#DEB887', text: '#000000', left: '#DEB887' };
+            case 'ready':
+                return { bg: '#D1FFD7', border: '#A3C6B0', text: '#000000', left: '#A3C6B0' };
+            case 'delivered':
+                return { bg: '#86e5ff', border: '#86e5ff', text: '#000000', left: '#86e5ff' };
+            case 'cancelled':
+                return { bg: '#F8D7DA', border: '#EA868F', text: '#000000', left: '#EA868F' };
+            default:
+                return { bg: '#E9ECEF', border: '#CED4DA', text: '#000000', left: '#CED4DA' };
         }
-    }, [searchForm.status, searchForm.code, performSearch]);
+    };
 
     return (
         <div className="h-100 d-flex flex-column">
-            <h6 className="mb-3 fw-bold rounded-heading">SPECIALIZED SEARCH</h6>
+            <h6 className="mb-3 fw-bold rounded-heading d-flex align-items-center">
+                <span style={{letterSpacing: '0.5px'}}>SPECIALIZED SEARCH</span>
+                <span className="ms-2 badge bg-info text-dark" style={{opacity: 0.85}}>Orders</span>
+            </h6>
 
             <Form onSubmit={handleSearch} className="mb-3">
-                <Row className="g-3">
-                    <Col md={6}>
-                        <Form.Label>Order Code</Form.Label>
+                <Row className="g-2 align-items-end">
+                    <Col md={12} sm={12}>
+                        <Form.Label className="mb-1">Order Code (optional)</Form.Label>
                         <InputGroup>
                             <Form.Control
                                 type="text"
-                                placeholder="Ex: 123"
+                                placeholder="Ex: 123 (empty = all orders)"
                                 value={searchForm.code}
                                 onChange={(e) => handleInputChange('code', e.target.value)}
                             />
-                            <Button variant="outline-primary" type="submit" disabled={loading}>
+                            <Button variant="primary" type="submit" disabled={loading} style={{background:'#86e5ff', borderColor:'#86e5ff', color:'#000'}}>
                                 {loading ? <Spinner size="sm" animation="border" /> : <Search size={18} />}
                             </Button>
                             <Button variant="outline-secondary" onClick={handleClear} disabled={loading}>
                                 Clear
                             </Button>
                         </InputGroup>
-                    </Col>
-                    <Col md={6}>
-                        <Form.Label>Status</Form.Label>
-                        <Form.Select
-                            value={searchForm.status}
-                            onChange={(e) => handleInputChange('status', e.target.value)}
-                            disabled={loading}
-                        >
-                            <option value="">All statuses</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Ready">Ready</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                        </Form.Select>
                     </Col>
                 </Row>
             </Form>
@@ -201,31 +266,48 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
             <div className="flex-grow-1 overflow-auto">
                 {hasSearched && (
-                    <div className="mb-2">
-                        <h6 className="text-muted mb-3">
-                            Search results: {searchResults.length} order(s) found
+                    <div className="mb-2 d-flex flex-wrap justify-content-between align-items-center">
+                        <h6 className="text-muted mb-2 mb-sm-0">
+                            {searchResults.length} order(s) found
                         </h6>
                     </div>
                 )}
 
                 {searchResults.length > 0 && (
                     <div className="d-flex flex-column gap-2">
-                        {searchResults.map((order) => (
-                            <Card key={order.id} className="border-0 shadow-sm">
+                        {searchResults.map((order) => {
+                            const visual = getStatusVisualStyle(order.status);
+                            return (
+                            <Card
+                                key={order.id}
+                                className="border-0 shadow-sm position-relative"
+                                style={{
+                                    borderLeft: `4px solid ${visual.left}`,
+                                    background: '#ffffff'
+                                }}
+                            >
                                 <Card.Body className="p-3">
                                     <div className="d-flex justify-content-between align-items-start mb-2">
                                         <div className="d-flex align-items-center">
                                             <h6 className="mb-0 me-2">
                                                 Order #{order.id}
                                             </h6>
-                                            <span className={`badge bg-${getStatusBadgeColor(order.status)}`}>
+                                            <span
+                                                className="badge"
+                                                style={{
+                                                    backgroundColor: visual.bg,
+                                                    color: visual.text,
+                                                    border: `1px solid ${visual.border}`,
+                                                    fontWeight: 500
+                                                }}
+                                            >
                                                 {translateStatus(order.status)}
                                             </span>
                                         </div>
                                         <div className="text-end">
-                                            <div className="fw-bold text-success">
+                                            <div className="fw-bold" style={{color: '#087f5b'}}>
                                                 <CurrencyDollar size={16} />
-                                                ${order.price?.toFixed(1) || '0.0'}
+                                                {(order.price ?? order.totalPrice ?? 0).toFixed(1)}
                                             </div>
                                             {order.orderDate && (
                                                 <small className="text-muted">
@@ -238,10 +320,9 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
 
                                     <div className="mb-2">
                                         <div className="d-flex align-items-center text-muted mb-1">
-                                            <Person size={16} className="me-1" />
-                                            <strong>{extractCustomerName(order.details)}</strong>
+                                            {/* Table badge if present */}
                                             {extractTableNumber(order.details) && (
-                                                <span className="ms-2 badge bg-light text-dark">
+                                                <span className="badge bg-light text-dark">
                                                     {extractTableNumber(order.details)}
                                                 </span>
                                             )}
@@ -251,21 +332,34 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                                     {Array.isArray(order.items) && order.items.length > 0 && (
                                         <div className="mt-2">
                                             <small className="text-muted d-block mb-1">Products:</small>
-                                            <div className="bg-light p-2 rounded">
+                                            <div className="d-flex flex-wrap gap-1">
                                                 {order.items?.map((item, index) => (
-                                                    <div
+                                                    <span
                                                         key={index}
-                                                        className={`small mb-1 ${index === (order.items?.length ?? 0) - 1 ? 'mb-0' : ''}`}
+                                                        className="badge rounded-pill"
+                                                        style={{
+                                                            background:'#f1f3f5',
+                                                            color:'#0a0a0a',
+                                                            border:'1px solid #dee2e6',
+                                                            fontWeight:400
+                                                        }}
                                                     >
-                                                        • {item}
-                                                    </div>
+                                                        {item}
+                                                    </span>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
+                                    {order.notes && (
+                                        <div className="mt-2">
+                                            <small className="text-muted d-block mb-1">Notes:</small>
+                                            <div className="bg-white border rounded p-2 small" style={{whiteSpace: 'pre-wrap'}}>
+                                                {order.notes}
+                                            </div>
+                                        </div>
+                                    )}
                                 </Card.Body>
-                            </Card>
-                        ))}
+                            </Card>)})}
                     </div>
                 )}
 

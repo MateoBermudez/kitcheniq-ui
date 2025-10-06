@@ -264,7 +264,7 @@ const SupplierTable: React.FC<SupplierTableProps> = ({ searchTerm, onToast, item
                                         >
                                             {item.orderId !== null && (
                                                 <>
-                                                    {/* Si la orden está DELIVERED, solo mostrar PDF */}
+                                                    {/* If the order is DELIVERED, only show PDF option */}
                                                     {item.status === 'DELIVERED' ? (
                                                         <Dropdown.Item
                                                             onClick={() => handleSeeOrderReport(item.orderId!)}
@@ -273,7 +273,7 @@ const SupplierTable: React.FC<SupplierTableProps> = ({ searchTerm, onToast, item
                                                         </Dropdown.Item>
                                                     ) : (
                                                         <>
-                                                            {/* Mostrar Review solo si NO está ACCEPTED ni DELIVERED */}
+                                                            {/* Show Review only if NOT ACCEPTED and NOT DELIVERED */}
                                                             {item.status !== 'ACCEPTED' && item.status !== 'DELIVERED' && (
                                                                 <Dropdown.Item
                                                                     onClick={() => openPreviewModal(item)}
@@ -445,7 +445,7 @@ const SupplierTable: React.FC<SupplierTableProps> = ({ searchTerm, onToast, item
                 </Modal.Footer>
             </Modal>
 
-            {/* Modal de previsualización de la orden */}
+            {/* Order preview modal */}
             <Modal show={showPreviewModal} onHide={() => setShowPreviewModal(false)} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>

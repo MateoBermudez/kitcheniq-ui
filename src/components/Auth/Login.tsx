@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../../App.scss';
+import { setAuthToken, getUserInfo } from "../../service/api";
 
 interface LoginRequest {
     userId: string;
@@ -16,7 +17,7 @@ interface AuthResponse {
 }
 
 interface LoginProps {
-    onLoginSuccess?: (token: string, userData?: {name?: string; type?: string }) => void;
+    onLoginSuccess?: (token: string, userData?: {name?: string; type?: string; id?: string }) => void;
     apiBaseUrl?: string;
 }
 
@@ -41,44 +42,80 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
 
     const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLInputElement>) => {
         e.preventDefault();
+        if (isLoading) return;
         setIsLoading(true);
         setError('');
 
         try {
+            // Send both userId and username for backend compatibility
             const response = await fetch(apiBaseUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({ userId: formData.userId, username: formData.userId, password: formData.password })
             });
 
             if (!response.ok) {
-                const errorData = await response.text();
-                throw new Error(errorData || `Error: ${response.status}`);
+                // Friendly messages for common auth failures
+                if (response.status === 401 || response.status === 403) {
+                    setError('Incorrect credentials');
+                    return;
+                }
+                let backendMessage = '';
+                try {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const json = await response.json();
+                        backendMessage = json.message || json.error || '';
+                    } else {
+                        backendMessage = await response.text();
+                    }
+                } catch {
+                    // ignore parsing issues
+                }
+                const finalMsg = backendMessage || `Error: ${response.status}`;
+                throw new Error(finalMsg);
             }
 
             const data: AuthResponse = await response.json();
-            console.log('Full Login response:', data); // View complete structure
-            console.log('Response keys:', Object.keys(data)); // Debug response keys
-
             const token = data.token;
-
             if (!token) {
                 throw new Error('No authentication token received from server');
             }
 
-            // Extract user data from login response
+            // IMPORTANT: store token immediately so subsequent API calls include Authorization header
+            setAuthToken(token);
+
+            // Fetch detailed user info now that token is stored
+            let fetchedUserName: string | undefined;
+            let fetchedUserType: string | undefined;
+            let fetchedUserId: string | undefined;
+            const candidateId = data.id || formData.userId; // prefer backend id if provided
+            try {
+                const userInfo = await getUserInfo(candidateId as string);
+                fetchedUserName = userInfo.name || userInfo.username;
+                fetchedUserType = userInfo.type || userInfo.role;
+                fetchedUserId = userInfo.id || userInfo.userId || candidateId;
+            } catch (infoErr) {
+                console.warn('Could not fetch detailed user info, using login response fallback', infoErr);
+                fetchedUserName = data.name;
+                fetchedUserType = data.employeeType || data.type || data.entityType;
+                fetchedUserId = data.id || formData.userId;
+            }
+
             const userData = {
-                name: data.name,
-                type: data.employeeType,
-                entityType: data.entityType,
-                id: data.id
+                name: fetchedUserName,
+                type: fetchedUserType,
+                id: fetchedUserId
             };
 
-            localStorage.setItem('userId', formData.userId);
-
-            console.log('Mapped user data:', userData);
+            localStorage.setItem('userData', JSON.stringify(userData));
+            localStorage.setItem('lastUserId', fetchedUserId || '');
+            // Backward compatibility key expected by some legacy components
+            if (fetchedUserId) {
+                localStorage.setItem('userId', fetchedUserId);
+            }
 
             if (onLoginSuccess) {
                 onLoginSuccess(token, userData);
@@ -86,7 +123,9 @@ const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://local
 
         } catch (err) {
             console.error('Login error:', err);
-            setError(err instanceof Error ? err.message : 'Connection error');
+            if (!error) {
+                setError(err instanceof Error ? err.message : 'Connection error');
+            }
         } finally {
             setIsLoading(false);
         }

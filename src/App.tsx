@@ -11,11 +11,12 @@ import {useToast} from "./components/hooks/useToast.ts";
 import Inventory from './views/Inventory';
 import Supplier from "./views/Supplier.tsx";
 import './App.scss';
+import { getUserInfo } from './service/api';
 
 interface User {
     id: string;
     name?: string;
-    type?: string;
+    type?: string; // ALWAYS stored uppercase
 }
 
 interface AuthContextType {
@@ -29,7 +30,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function normalizeType(type?: string): string | undefined {
+    return type ? type.toUpperCase() : undefined;
+}
+
 function AuthProvider({ children }: { children: ReactNode }) {
+    // State for auth token, user object and loading indicator
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -39,9 +45,31 @@ function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const storedToken = localStorage.getItem('authToken');
                 const storedUserData = localStorage.getItem('userData');
+                const lastUserId = localStorage.getItem('lastUserId');
                 if (storedToken) {
                     setToken(storedToken);
-                    const userData = storedUserData ? JSON.parse(storedUserData) : {};
+                    let userData = storedUserData ? JSON.parse(storedUserData) : {};
+
+                    // If name or type missing, try refreshing from backend
+                    if ((!userData.name || !userData.type) && lastUserId) {
+                        try {
+                            const info = await getUserInfo(lastUserId);
+                            userData = {
+                                ...userData,
+                                id: info.id || info.userId || lastUserId,
+                                name: info.name || info.username || userData.name,
+                                type: normalizeType(info.type || info.role || userData.type)
+                            };
+                            localStorage.setItem('userData', JSON.stringify(userData));
+                        } catch (e) {
+                            console.warn('Could not refresh user info:', e);
+                        }
+                    } else if (userData.type) {
+                        // Ensure normalization if already present
+                        userData.type = normalizeType(userData.type);
+                        localStorage.setItem('userData', JSON.stringify(userData));
+                    }
+
                     setUser({
                         id: userData.id || 'current_user',
                         name: userData.name,
@@ -69,16 +97,17 @@ function AuthProvider({ children }: { children: ReactNode }) {
         setToken(newToken);
         localStorage.setItem('authToken', newToken);
 
+        const normalizedType = normalizeType(userData?.type);
         const userInfo = {
             id: userData?.id || 'current_user',
             name: userData?.name,
-            type: userData?.type
+            type: normalizedType
         };
 
         setUser(userInfo);
 
         if (userData) {
-            localStorage.setItem('userData', JSON.stringify(userData));
+            localStorage.setItem('userData', JSON.stringify({ ...userData, type: normalizedType }));
         }
     };
 
@@ -117,29 +146,21 @@ function MainLayout() {
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
+    const isSupplierUser = user?.type === 'SUPPLIER';
+
+    // Only derive active section from current path (no redirect logic here to avoid loops)
     useEffect(() => {
         const path = location.pathname;
-        if (path.includes('/orders')) {
-            setActiveSection('orders');
-        } else if (path.includes('/inventory')) {
-            setActiveSection('inventory');
-        } else if (path.includes('/supplier')) {
-            setActiveSection('supplier');
-        } else if (path.includes('/menu')) {
-            setActiveSection('menu');
-        } else if (path.includes('/staff')) {
-            setActiveSection('staff');
-        } else if (path.includes('/cash')) {
-            setActiveSection('cash');
-        } else if (path.includes('/sales')) {
-            setActiveSection('sales');
-        } else if (path.includes('/expenses')) {
-            setActiveSection('expenses');
-        } else if (path.includes('/reports')) {
-            setActiveSection('reports');
-        } else if (path.includes('/home')) {
-            setActiveSection('home');
-        }
+        if (path.includes('/orders')) setActiveSection('orders');
+        else if (path.includes('/inventory')) setActiveSection('inventory');
+        else if (path.includes('/supplier')) setActiveSection('supplier');
+        else if (path.includes('/menu')) setActiveSection('menu');
+        else if (path.includes('/staff')) setActiveSection('staff');
+        else if (path.includes('/cash')) setActiveSection('cash');
+        else if (path.includes('/sales')) setActiveSection('sales');
+        else if (path.includes('/expenses')) setActiveSection('expenses');
+        else if (path.includes('/reports')) setActiveSection('reports');
+        else if (path.includes('/home')) setActiveSection('home');
     }, [location.pathname]);
 
     const mappedToasts = toasts.map(t => ({
@@ -171,21 +192,29 @@ function MainLayout() {
                     userType={user?.type}
                 />
                 <div className="flex-grow-1">
-                    <Routes>
-                        <Route path="/" element={<Navigate to="/orders" replace />} />
-                        <Route path="/home" element={<div>Home Page</div>} />
-                        <Route path="/orders" element={
-                            <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
-                        } />
-                        <Route path="/inventory" element={<Inventory key="inventory" />} />
-                        <Route path="/supplier" element={<Supplier key="supplier" />} />
-                        <Route path="/menu" element={<div key="menu">Menu Page</div>} />
-                        <Route path="/staff" element={<div key="staff">Staff Page</div>} />
-                        <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
-                        <Route path="/sales" element={<div key="sales">Sales Page</div>} />
-                        <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
-                        <Route path="/reports" element={<div key="reports">Reports Page</div>} />
-                    </Routes>
+                    {isSupplierUser ? (
+                        <Routes>
+                            <Route path="/supplier" element={<Supplier key="supplier" />} />
+                            <Route path="*" element={<Navigate to="/supplier" replace />} />
+                        </Routes>
+                    ) : (
+                        <Routes>
+                            <Route path="/" element={<Navigate to="/orders" replace />} />
+                            <Route path="/home" element={<div>Home Page</div>} />
+                            <Route path="/orders" element={
+                                <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
+                            } />
+                            <Route path="/inventory" element={<Inventory key="inventory" />} />
+                            <Route path="/supplier" element={<Supplier key="supplier" />} />
+                            <Route path="/menu" element={<div key="menu">Menu Page</div>} />
+                            <Route path="/staff" element={<div key="staff">Staff Page</div>} />
+                            <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
+                            <Route path="/sales" element={<div key="sales">Sales Page</div>} />
+                            <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
+                            <Route path="/reports" element={<div key="reports">Reports Page</div>} />
+                            <Route path="*" element={<Navigate to="/orders" replace />} />
+                        </Routes>
+                    )}
                 </div>
                 <ToastContainer
                     toasts={mappedToasts}
@@ -199,7 +228,7 @@ function MainLayout() {
 
 function AppContent() {
     const { toasts, removeToast, showSuccess } : ToastContextType = useToast();
-    const { isAuthenticated, login, isLoading } = useAuth();
+    const { isAuthenticated, login, isLoading, user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -214,18 +243,40 @@ function AppContent() {
 
     const handleLoginSuccess = (token: string, userData?: { name?: string; type?: string; id?: string }) => {
         login(token, userData);
+        const incomingType = (userData?.type || '').toUpperCase();
+        const destination = incomingType === 'SUPPLIER' ? '/supplier' : '/orders';
+        // Slight delay to ensure context state committed before navigation
         setTimeout(() => {
+            navigate(destination, { replace: true });
             showSuccess('Login successful! Welcome to KitchenIQ');
-        }, 100);
+        }, 50);
     };
 
+    // Centralized redirect logic to avoid loops
     useEffect(() => {
-        if (isAuthenticated && location.pathname === '/') {
-            setTimeout(() => {
-                navigate('/orders', { replace: true });
-            }, 50);
+        if (!isAuthenticated || isLoading) return;
+        const current = location.pathname;
+        const supplier = user?.type === 'SUPPLIER';
+        if (supplier && current !== '/supplier') {
+            navigate('/supplier', { replace: true });
+            return;
         }
-    }, [isAuthenticated, location.pathname, navigate]);
+        if (!supplier) {
+            if (current === '/' || current === '/login') {
+                navigate('/orders', { replace: true });
+            }
+        }
+    }, [isAuthenticated, isLoading, user?.type, location.pathname, navigate]);
+
+    // Listen for global auth-expired event (401 from API)
+    useEffect(() => {
+        const handler = () => {
+            logout();
+            navigate('/login', { replace: true });
+        };
+        window.addEventListener('auth-expired', handler);
+        return () => window.removeEventListener('auth-expired', handler);
+    }, [logout, navigate]);
 
     if (isLoading) {
         return (

@@ -34,13 +34,13 @@ type NavItem = {
 const Sidebar = ({ activeSection, onSectionChange, userName, userType }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
 
-    // Función para formatear el tipo de empleado
+    // Function to format the user type (default fallback EMPLOYEE)
     const formatUserType = (type?: string) => {
         if (!type) return 'EMPLOYEE';
         return type.toUpperCase();
     };
 
-    // Función para obtener el nombre de usuario
+    // Function to get a display user name (default fallback USER123)
     const getDisplayName = (name?: string) => {
         if (!name) return 'USER123';
         return name;
