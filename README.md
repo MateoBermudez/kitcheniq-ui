@@ -1,4 +1,4 @@
-# Kitchen IQ
+# KitchenIQ
 
 KitchenIQ is a back-office system designed for small and medium-sized restaurants that want to optimize their internal operations by digitizing and automating key processes. The platform enables management of inventory, suppliers, finances, staff, orders, and data analysis, ensuring efficient and profitable administration.
 
