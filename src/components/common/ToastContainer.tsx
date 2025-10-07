@@ -2,8 +2,23 @@ import React from 'react';
 import { Toast, ToastContainer as BSToastContainer } from 'react-bootstrap';
 import { CheckCircle, XCircle, ExclamationTriangle, InfoCircle } from 'react-bootstrap-icons';
 
-const ToastContainer = ({ toasts, onClose }) => {
-    const getToastIcon = (type) => {
+export type ToastType = 'success' | 'danger' | 'warning' | 'info';
+
+export interface ToastItem {
+    id: string | number;
+    type: ToastType;
+    timestamp?: string;
+    message?: string;
+}
+
+interface ToastContainerProps {
+    toasts: ToastItem[];
+    onClose: (id: string | number) => void;
+    title: string;
+}
+
+const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title }) => {
+    const getToastIcon = (type: ToastType) => {
         switch (type) {
             case 'success':
                 return <CheckCircle className="me-2" size={18} />;
@@ -18,7 +33,7 @@ const ToastContainer = ({ toasts, onClose }) => {
         }
     };
 
-    const getToastStyle = (type) => {
+    const getToastStyle = (type: ToastType) => {
         switch (type) {
             case 'success':
                 return {
@@ -64,7 +79,7 @@ const ToastContainer = ({ toasts, onClose }) => {
                     >
                         <Toast.Header style={toastStyle.header}>
                             {getToastIcon(toast.type)}
-                            <strong className="me-auto">Estado de Pedidos</strong>
+                            <strong className="me-auto">{title}</strong>
                             <small>{toast.timestamp}</small>
                         </Toast.Header>
                         <Toast.Body style={toastStyle.body}>

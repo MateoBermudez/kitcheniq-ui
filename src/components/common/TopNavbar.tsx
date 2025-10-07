@@ -1,36 +1,46 @@
-import React from 'react';
 import { Navbar, Container, Nav } from 'react-bootstrap';
 import { BoxArrowRight } from 'react-bootstrap-icons';
-import logo from '../../../../kitcheniq-ui-refactor/src/assets/LogoKitchenIQ.png';
+import logo from '../../assets/LogoBlack.png';
 
-const TopNavbar = () => {
-    const fechaActual = new Date().toLocaleDateString('es-ES', {
+interface TopNavbarProps {
+    onLogout?: () => void;
+}
+
+const TopNavbar: React.FC<TopNavbarProps> = ({ onLogout }) => {
+    const actualDate = new Date().toLocaleDateString('es-ES', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
     });
 
     const handleLogout = () => {
-        console.log('Cerrando sesión...');
+        console.log('Logging Out...');
+        localStorage.clear()
+        if (onLogout) {
+            onLogout();
+        }
     };
 
     return (
-        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#B1E5FF' }}>
+        <Navbar expand="lg" className="py-2" style={{ backgroundColor: '#86E5FF' }}>
             <Container fluid>
-                <div className="ms-4">
+                <div className="ms-2">
                     <Navbar.Brand href="/">
                         <img
                             src={logo}
-                            width="80"
-                            height="40"
                             className="d-inline-block align-top me-2"
                             alt="KitchenIQ Logo"
+                            style={{
+                                height: '40px',
+                                maxWidth: '120px',
+                                objectFit: 'contain'
+                            }}
                         />
                     </Navbar.Brand>
                 </div>
                 <Nav className="ms-auto d-flex align-items-center">
                     <Nav.Item className="text-dark me-3">
-                        {fechaActual}
+                        {actualDate}
                     </Nav.Item>
                     <Nav.Link onClick={handleLogout} className="text-dark">
                         <BoxArrowRight size={24} />

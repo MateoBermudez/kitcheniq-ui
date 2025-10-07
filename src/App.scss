@@ -1,6 +1,5 @@
-.App {
-  text-align: center;
-}
+@import url('https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
+@import "bootstrap-icons/font/bootstrap-icons.css";
 
 html, body, #root {
   height: 100%;
@@ -12,7 +11,6 @@ html, body, #root {
   min-height: 100vh;
 }
 
-/* Estilos personalizados adicionales */
 .table th {
   font-weight: 600;
   font-size: 0.9rem;
@@ -28,4 +26,68 @@ html, body, #root {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.rounded-heading {
+  font-family: 'Rubik', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+
+.dropdown-menu-super {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+.logo-animation {
+  animation: fadeInScale 1.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.logo-animation-subtle:hover {
+  transform: scale(1.05);
+  transition: transform 0.3s ease-in-out;
+}
+
+/* ----- Create Order Modal Enhancements ----- */
+.create-order-modal {
+  .modal-dialog { max-width: 1180px; }
+  .order-form-left { position: relative; }
+  .order-items-wrapper {
+    background: #f8fafc;
+  }
+  .order-items-scroll {
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .order-items-scroll::-webkit-scrollbar { width: 6px; }
+  .order-items-scroll::-webkit-scrollbar-track { background: transparent; }
+  .order-items-scroll::-webkit-scrollbar-thumb { background: #c9d2dc; border-radius: 3px; }
+  .order-line-item { font-size: 0.9rem; }
+  .quantity-box input { box-shadow: none; }
+  .product-chip { line-height: 1.1; display: inline-flex; align-items: center; gap: 2px; }
+  .product-chip span { font-size: 0.7rem; }
+  .summary-card { min-height: 100%; }
+  .summary-lines { max-height: 240px; overflow-y: auto; }
+  .summary-lines::-webkit-scrollbar { width: 6px; }
+  .summary-lines::-webkit-scrollbar-thumb { background:#d0d7de; border-radius:3px; }
+}
+
+/* Utility hover states */
+.product-chip:hover { background-color: #e6f7ff; }
+
+@media (max-width: 992px) {
+  .create-order-modal .summary-card { margin-top: 1rem; }
 }
