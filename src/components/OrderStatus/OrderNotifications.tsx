@@ -59,7 +59,9 @@ const OrderNotifications: React.FC = () => {
                 if (parsed.pendingUrgentMin) setPendingUrgentMin(parsed.pendingUrgentMin);
                 if (parsed.readyWarningMin) setReadyWarningMin(parsed.readyWarningMin);
             }
-        } catch {}
+        } catch (error) {
+            console.error('Error loading notification thresholds from localStorage:', error);
+        }
     }, []);
 
     const persistThresholds = () => {

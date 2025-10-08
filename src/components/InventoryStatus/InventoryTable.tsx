@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+// import {useEffect, useCallback} from 'react';
 import { Table, Spinner, Alert } from 'react-bootstrap';
-import { getAllInventoryItems } from '../../service/api';
+// import { getAllInventoryItems } from '../../service/api';
 import type { InventoryItem } from './InventoryStatus';
 
 interface InventoryTableProps {
@@ -15,9 +16,15 @@ const mockInventoryItems: InventoryItem[] = [
 ];
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) => {
-    const [items, setItems] = useState<InventoryItem[]>(mockInventoryItems);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [items] = useState<InventoryItem[]>(mockInventoryItems);
+    const [loading] = useState(false);
+    const [error] = useState<string | null>(null);
+
+    //const [items, setItems] = useState<InventoryItem[]>(mockInventoryItems);
+    //const [loading, setLoading] = useState(false);
+    //const [error, setError] = useState<string | null>(null);
+
+    onToast('Loaded mock inventory data', 'info');
 
     // Commented out API loading for mock data
     // const loadItems = useCallback(async () => {
