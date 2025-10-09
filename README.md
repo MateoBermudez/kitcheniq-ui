@@ -69,7 +69,7 @@ The modal for creating a new inventory item includes fields for name, descriptio
 
 ---
 
-**Note:** The complete frontend project is not yet hosted on a public server. Once it is deployed, the cloud URL to access the project will be provided here: [Access KitchenIQ Frontend](https://kitcheniq.vercel.app/).
+**Note:** The complete frontend project is hosted on a public server. The cloud URL to access the project will be provided here: [Access KitchenIQ Frontend](https://kitcheniq.vercel.app/).
 
 ## Key Features
 Based on the current implementation in this repository:
