@@ -22,8 +22,8 @@ export const isAuthenticated = (): boolean => {
 };
 
 // Both backend domains currently use the same port
-const API_BASE_URL = 'https://kitcheniq-api.onrender.com';
-const ORDERS_API_BASE_URL = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1';
+const API_BASE_URL = 'http://localhost:5000';
+const ORDERS_API_BASE_URL = 'http://localhost:5000/kitcheniq/api/v1';
 
 export interface OrderComponentData {
     id: number;

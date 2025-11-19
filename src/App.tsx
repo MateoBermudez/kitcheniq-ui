@@ -296,7 +296,7 @@ function AppContent() {
             <>
                 <Login
                     onLoginSuccess={handleLoginSuccess}
-                    apiBaseUrl="https://kitcheniq-api.onrender.com/kitcheniq/api/v1/auth/login"
+                    apiBaseUrl="http://localhost:5000/kitcheniq/api/v1/auth/login"
                 />
                 <ToastContainer
                     toasts={mappedToasts}

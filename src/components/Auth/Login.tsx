@@ -21,7 +21,7 @@ interface LoginProps {
     apiBaseUrl?: string;
 }
 
-const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/auth/login'}) => {
+const Login: React.FC<LoginProps> = ({onLoginSuccess, apiBaseUrl = 'http://localhost:5000/kitcheniq/api/v1/auth/login'}) => {
     const [formData, setFormData] = useState<LoginRequest>({
         userId: '',
         password: ''
