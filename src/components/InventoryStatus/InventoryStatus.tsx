@@ -357,7 +357,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
                     </Col>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            <InventoryNotifications onToast={onToast} />
+                            <InventoryNotifications />
                         </div>
                     </Col>
                 </Row>

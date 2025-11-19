@@ -271,6 +271,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
             setItems(prev => [...prev, created]);
             setShowAddModal(false);
             onToast(`Product "${created.name}" added`, 'success');
+
+            // Dispatch event for inventory notifications
+            window.dispatchEvent(new CustomEvent('inventory-item-added', {
+                detail: {
+                    itemId: created.id,
+                    itemName: created.name,
+                    quantity: created.stockQuantity || 0,
+                    supplier: selectedSupplier,
+                    timestamp: Date.now()
+                }
+            }));
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Could not create product';
             onToast(msg, 'error');
