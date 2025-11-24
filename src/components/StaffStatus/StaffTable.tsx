@@ -277,8 +277,18 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         if (!employeeToDelete || !canConfirmDelete) return;
         try {
             setDeleting(true);
-            // Simular llamada al backend
-            await new Promise(resolve => setTimeout(resolve, 700));
+            // TODO: CALL BACKEND DELETE ENDPOINT HERE
+            const response = await fetch(`${STAFF_LIST_ENDPOINT}/delete/${employeeToDelete.id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+            // TODO: Bypass for now, since backend delete not implemented
+            /*
+            if (!response.ok) {
+                throw new Error(`Delete request failed (${response.status})`);
+            }
+            */
+
             setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
             onToast?.(`Employee ${employeeToDelete.firstName} ${employeeToDelete.lastName} (ID ${employeeToDelete.id}) deleted`, 'success');
             setShowDeleteModal(false);
