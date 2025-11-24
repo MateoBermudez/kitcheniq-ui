@@ -11,11 +11,11 @@ interface InventoryTableProps {
 interface Product {
     id: number | null;
     name: string;
-    description: string;
-    category: string;
+    description: string; // se mantiene para items existentes
+    category: string; // se mantiene para items existentes
     stockQuantity: number;
     price: number;
-    supplier: string; // new supplier field
+    supplier: string;
 }
 
 interface RawProduct {
@@ -134,7 +134,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
                 body: JSON.stringify(input)
             });
             if (!resp.ok) throw new Error(`Create product failed (${resp.status})`);
-            const data: unknown = await resp.json();
+            const data: unknown = await resp.text();
             const raw = (typeof data === 'object' && data) ? data as RawProduct : {};
             return {
                 id: raw?.id ?? raw?.itemId ?? null,
@@ -255,7 +255,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
 
     const submitAddProduct = async () => {
         if (!newProduct.name.trim()) { onToast('Name is required', 'error'); return; }
-        if (!newProduct.category.trim()) { onToast('Category is required', 'error'); return; }
         if (!selectedSupplier.trim()) { onToast('Supplier is required', 'error'); return; }
         if (!priceValid) { onToast('Enter a valid price', 'error'); return; }
         try {
@@ -410,26 +409,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
                                 required
                             />
                         </Form.Group>
-                        <Form.Group className="mb-3" controlId="prdDesc">
-                            <Form.Label>Description</Form.Label>
-                            <Form.Control
-                                as="textarea"
-                                rows={2}
-                                value={newProduct.description}
-                                onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))}
-                                placeholder="Product description"
-                            />
-                        </Form.Group>
-                        <Form.Group className="mb-3" controlId="prdCat">
-                            <Form.Label>Category *</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={newProduct.category}
-                                onChange={e => setNewProduct(p => ({ ...p, category: e.target.value }))}
-                                placeholder="Category"
-                                required
-                            />
-                        </Form.Group>
                         <Form.Group className="mb-3" controlId="prdSupplier">
                             <Form.Label>Supplier *</Form.Label>
                             <Form.Select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)} required>
@@ -458,7 +437,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
                     <Button variant="secondary" onClick={() => setShowAddModal(false)}>
                         <XCircle size={16} className="me-1" /> Cancel
                     </Button>
-                    <Button variant="primary" onClick={submitAddProduct} disabled={savingAdd || !newProduct.name || !newProduct.category || !selectedSupplier || !priceValid} style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}>
+                    <Button variant="primary" onClick={submitAddProduct} disabled={savingAdd || !newProduct.name || !selectedSupplier || !priceValid} style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}>
                         <Check2Circle size={16} className="me-1" /> Add
                     </Button>
                 </Modal.Footer>
@@ -477,18 +456,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) 
                             <Form.Group className="mb-3">
                                 <Form.Label>Name</Form.Label>
                                 <Form.Control value={productToEdit.name} disabled readOnly />
-                            </Form.Group>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Description</Form.Label>
-                                <Form.Control as="textarea" rows={2} value={productToEdit.description} disabled readOnly />
-                            </Form.Group>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Category</Form.Label>
-                                <Form.Control value={productToEdit.category} disabled readOnly />
-                            </Form.Group>
-                            <Form.Group className="mb-1">
-                                <Form.Label>Stock Quantity</Form.Label>
-                                <Form.Control type="number" value={productToEdit.stockQuantity} disabled readOnly />
                             </Form.Group>
                             <div className="mt-2 text-muted"><small>This feature will be available soon.</small></div>
                         </Form>

@@ -188,6 +188,26 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
         return data as PurchaseOrderDTO;
     };
 
+    const eliminateItemFromPurchaseOrder = async (params: { orderId: number; itemId: number; itemName: string; quantity: number; unitPrice: number }): Promise<PurchaseOrderDTO> => {
+        const subTotal = parseFloat((params.unitPrice * params.quantity).toFixed(2));
+        const body: PurchaseOrderItemDTO = {
+            orderId: params.orderId,
+            itemName: params.itemName,
+            itemId: params.itemId,
+            quantity: params.quantity,
+            unitPrice: params.unitPrice,
+            subTotal
+        };
+        const resp = await fetch(`${ADMIN_BASE}/eliminate-items-from-order`, {
+            method: 'POST',
+            headers: buildHeaders(),
+            body: JSON.stringify(body)
+        });
+        if (!resp.ok) throw new Error(`Eliminate item failed (${resp.status})`);
+        const data = await resp.json().catch(() => ({}));
+        return data as PurchaseOrderDTO;
+    };
+
     // Finalizar orden
     const finalizePurchaseOrder = async (ordId: number): Promise<PurchaseOrderDTO> => {
         const resp = await fetch(`${ADMIN_BASE}/finalize-purchase-order?orderId=${ordId}`, {
@@ -294,9 +314,30 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
         }
     };
 
-    const removeItem = (idx: number) => {
-        const newItems = orderItems.filter((_, i) => i !== idx);
-        setOrderItems(newItems); // orderTotal se recalcula automáticamente por useMemo
+    const removeItem = async (idx: number) => {
+        if (orderId == null) { onToast('La orden no está inicializada', 'error'); return; }
+        const target = orderItems[idx];
+        if (!target) return;
+        try {
+            const updatedPO = await eliminateItemFromPurchaseOrder({
+                orderId,
+                itemId: target.productId,
+                itemName: target.productName,
+                quantity: target.quantity,
+                unitPrice: target.unitPrice
+            });
+            const mapped: OrderItemDraft[] = (updatedPO.items || []).map(it => ({
+                productId: it.itemId,
+                productName: it.itemName,
+                quantity: it.quantity,
+                unitPrice: it.unitPrice || 0
+            }));
+            setOrderItems(mapped);
+            onToast(`Eliminado ${target.productName}`, 'info');
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Error eliminando item';
+            onToast(msg, 'error');
+        }
     };
 
     // Final submission

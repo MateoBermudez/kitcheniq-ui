@@ -12,6 +12,7 @@ import Inventory from './views/Inventory';
 import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 import { getUserInfo } from './service/api';
+import Staff from "./views/Staff.tsx";
 
 interface User {
     id: string;
@@ -207,7 +208,7 @@ function MainLayout() {
                             <Route path="/inventory" element={<Inventory key="inventory" />} />
                             <Route path="/supplier" element={<Supplier key="supplier" />} />
                             <Route path="/menu" element={<div key="menu">Menu Page</div>} />
-                            <Route path="/staff" element={<div key="staff">Staff Page</div>} />
+                            <Route path="/staff" element={<Staff key="staff" />} />
                             <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
                             <Route path="/sales" element={<div key="sales">Sales Page</div>} />
                             <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
