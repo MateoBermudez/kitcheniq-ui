@@ -456,6 +456,12 @@ export const getAllInventoryItems = () => {
     return apiClient.get('/inventory/getAll');
 }
 
+export const searchInventoryItems = (name?: string) => {
+    return apiClient.get('/kitcheniq/api/v1/admin/inventory-search', {
+        params: { name }
+    });
+}
+
 // This is an admin only function
 export const createSupplierItem = (itemData: SupplierItem) => {
     return apiClient.post('/supplier/create', itemData);
