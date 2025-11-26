@@ -33,11 +33,12 @@ interface RawEmployee {
     hireDate?: string;
     status?: string; // estado textual backend
     shiftStatus?: string; // variación
+    employeeType?: string; // soporte para EmployeeDTO
 }
 
 const TOKEN_KEY = 'authToken';
 // Asunción de endpoint — si cambia, actualizar aquí
-const STAFF_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/staff-list';
+const STAFF_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/employees-list';
 
 const LIGHT_STATUS_COLORS: Record<EmployeeStatus, string> = {
     'On Shift': '#75c39b',      // versión más clara del verde
@@ -47,6 +48,12 @@ const LIGHT_STATUS_COLORS: Record<EmployeeStatus, string> = {
 
 const PAGE_SIZE = 10;
 const PAGE_WINDOW = 5; // mostrar solo 5 páginas visibles
+
+const EMPLOYEE_TYPE_TO_POSITION: Record<string,string> = {
+    'ADMIN': 'Admin',
+    'CHEF': 'Chef',
+    'WAITER': 'Waiter'
+};
 
 const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -127,6 +134,35 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             return [];
         };
         const rawArr = extractArray(data);
+
+        // Detectar si todos los elementos parecen EmployeeDTO (id, name, employeeType)
+        const looksLikeEmployeeDTO = (o: RawEmployee): boolean => {
+            return !!o && typeof o === 'object' && 'id' in o && 'name' in o && 'employeeType' in o;
+        };
+
+        if (rawArr.length > 0 && rawArr.every(looksLikeEmployeeDTO)) {
+            // Mapeo específico para EmployeeDTO
+            return rawArr.map(dto => {
+                const id = dto.id != null ? String(dto.id) : '';
+                const fullName = (dto.name || '').trim();
+                const [firstNameRaw, ...rest] = fullName.split(/\s+/);
+                const firstName = firstNameRaw || 'Unknown';
+                const lastName = rest.join(' ');
+                const employeeTypeRaw = (dto.employeeType || '').toUpperCase();
+                const position = EMPLOYEE_TYPE_TO_POSITION[employeeTypeRaw] || (employeeTypeRaw ? employeeTypeRaw.charAt(0) + employeeTypeRaw.slice(1).toLowerCase() : 'Employee');
+                return {
+                    id,
+                    firstName,
+                    lastName,
+                    position,
+                    hourlyRate: 0,
+                    contractDate: new Date().toISOString(),
+                    status: 'Shift Ended'
+                };
+            });
+        }
+
+        // Fallback al mapeo genérico existente
         return mapRawEmployees(rawArr);
     }, [mapRawEmployees]);
 
@@ -157,7 +193,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                     { id: '1000000009', firstName: 'Sara', lastName: 'Vega', position: 'Dishwasher', hourlyRate: 9, contractDate: '2025-11-22T06:00:00Z', status: 'Delayed' },
                     { id: '1000000010', firstName: 'Pablo', lastName: 'Navarro', position: 'Cook', hourlyRate: 12, contractDate: '2025-11-20T11:20:00Z', status: 'Shift Ended' },
                     { id: '1000000011', firstName: 'Adriana', lastName: 'Morales', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-19T16:00:00Z', status: 'On Shift' },
-                    ];
+                ];
                 setEmployees(mock);
             } finally {
                 if (mounted) setLoading(false);
@@ -194,10 +230,13 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             return db - da; // más reciente primero
         });
         if (!searchTerm) return sorted;
-        const term = searchTerm.toLowerCase();
+        const term = searchTerm.trim().toLowerCase(); // normalizar término
         return sorted.filter(emp => {
-            const idMatch = emp.id.includes(term);
-            const nameMatch = `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(term) || emp.firstName.toLowerCase().includes(term) || emp.lastName.toLowerCase().includes(term);
+            // Hacer búsqueda de ID case-insensitive
+            const idMatch = emp.id.toLowerCase().includes(term);
+            // Normalizar nombres para búsqueda (case-insensitive)
+            const fullNameLower = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+            const nameMatch = fullNameLower.includes(term) || emp.firstName.toLowerCase().includes(term) || emp.lastName.toLowerCase().includes(term);
             return idMatch || nameMatch;
         });
     }, [employees, searchTerm]);
@@ -277,17 +316,14 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         if (!employeeToDelete || !canConfirmDelete) return;
         try {
             setDeleting(true);
-            // TODO: CALL BACKEND DELETE ENDPOINT HERE
-            const response = await fetch(`${STAFF_LIST_ENDPOINT}/delete/${employeeToDelete.id}`, {
-                method: 'DELETE',
+            const response = await fetch(`http://localhost:5000/kitcheniq/api/v1/admin/delete-employee?employeeId=${employeeToDelete.id}`, {
+                method: 'POST',
                 headers: authHeaders()
             });
-            // TODO: Bypass for now, since backend delete not implemented
-            /*
             if (!response.ok) {
-                throw new Error(`Delete request failed (${response.status})`);
+                onToast?.(`Delete failed (${response.status})`, 'error');
+                return; // evitar throw local
             }
-            */
 
             setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
             onToast?.(`Employee ${employeeToDelete.firstName} ${employeeToDelete.lastName} (ID ${employeeToDelete.id}) deleted`, 'success');

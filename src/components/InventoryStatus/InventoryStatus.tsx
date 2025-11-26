@@ -27,11 +27,11 @@ interface InventoryStatusProps {
     onToast: (msg: string, type?: string) => void;
 }
 
-
-// Local types for supplier order creation
+// Dynamic supplier DTO
 interface Supplier {
-    id: string; // ahora el id es el código del supplier, ej: 'SUP001'
+    id: string;
     name: string;
+    contactInfo?: string;
 }
 
 interface ProductOption {
@@ -39,6 +39,17 @@ interface ProductOption {
     name: string;
     price: number;
     supplier: string;
+}
+// Tipo flexible para items del supplier que pueden venir con distintos nombres de campos
+interface RawSupplierItem {
+    id?: unknown;
+    itemId?: unknown;
+    name?: unknown;
+    itemName?: unknown;
+    price?: unknown;
+    unitPrice?: unknown;
+    cost?: unknown;
+    supplier?: unknown;
 }
 
 interface OrderItemDraft {
@@ -77,9 +88,20 @@ interface PurchaseOrderDTO {
 }
 
 const AUTH_TOKEN_KEY = 'authToken';
-const INVENTORY_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/inventory-list';
+// REMOVED INVENTORY_LIST_ENDPOINT (ya no se usa para el modal de orden de compra)
 const ADMIN_BASE = 'http://localhost:5000/kitcheniq/api/v1/admin';
-const STATIC_SUPPLIER: Supplier = { id: 'SUP001', name: 'SUP001' };
+const SUPPLIER_LIST_ENDPOINT = `${ADMIN_BASE}/supplier-list`;
+const SUPPLIER_ITEMS_ENDPOINT = `${ADMIN_BASE}/supplier-inventory-items`;
+
+// Helper para extraer arreglos de respuestas flexibles (array directo o { data: [...] })
+function extractArrayPayload(raw: unknown): unknown[] {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object' && 'data' in raw) {
+        const maybe = (raw as { data: unknown }).data;
+        if (Array.isArray(maybe)) return maybe;
+    }
+    return [];
+}
 
 const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
     const [searchTerm] = useState<string>('');
@@ -92,6 +114,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
     // Supplier selection
     const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [loadingSuppliers, setLoadingSuppliers] = useState<boolean>(false);
 
     // Product selection
     const [products, setProducts] = useState<ProductOption[]>([]);
@@ -106,6 +129,8 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
     // El total ahora se calcula únicamente con los items locales pendientes
     const orderTotal = useMemo(() => orderItems.reduce((sum, it) => sum + (it.unitPrice * it.quantity), 0), [orderItems]);
 
+    const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId) || null;
+
     // Generic helpers
     const buildHeaders = (): HeadersInit => {
         const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -114,32 +139,52 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
         return base;
     };
 
-    // API calls (in-component as requested)
-    const fetchProducts = async (): Promise<ProductOption[]> => {
+    // Fetch suppliers list
+    const fetchSuppliers = async (): Promise<Supplier[]> => {
+        setLoadingSuppliers(true);
+        try {
+            const resp = await fetch(SUPPLIER_LIST_ENDPOINT, { headers: buildHeaders() });
+            if (!resp.ok) {
+                onToast(`Supplier list failed (${resp.status})`, 'error');
+                return [];
+            }
+            const data: unknown = await resp.json().catch(() => ({}));
+            const arr = extractArrayPayload(data);
+            return arr.map((s, idx): Supplier => {
+                const o = (typeof s === 'object' && s !== null) ? s as Record<string, unknown> : {};
+                return {
+                    id: String(o.id ?? `SUP${idx + 1}`),
+                    name: String(o.name ?? `Supplier ${idx + 1}`),
+                    contactInfo: o.contactInfo ? String(o.contactInfo) : undefined
+                };
+            });
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Error obteniendo suppliers';
+            onToast(msg, 'error');
+            return [];
+        } finally {
+            setLoadingSuppliers(false);
+        }
+    };
+
+    // Fetch items for a supplier (InventoryItemDTO)
+    const fetchSupplierItems = async (supplierId: string): Promise<ProductOption[]> => {
         setLoadingProducts(true);
         try {
-            const resp = await fetch(INVENTORY_LIST_ENDPOINT, { headers: buildHeaders() });
-            if (!resp.ok) throw new Error(`Inventory list failed (${resp.status})`);
-            let data: unknown;
-            try { data = await resp.json(); } catch { throw new Error('Invalid inventory response'); }
-            const extractArray = (src: unknown): unknown[] => {
-                if (Array.isArray(src)) return src;
-                if (typeof src === 'object' && src !== null) {
-                    const obj = src as Record<string, unknown>;
-                    for (const k of ['data','inventoryList','items','inventory']) {
-                        const v = obj[k];
-                        if (Array.isArray(v)) return v;
-                    }
-                }
+            const url = `${SUPPLIER_ITEMS_ENDPOINT}?supplierId=${encodeURIComponent(supplierId)}`;
+            const resp = await fetch(url, { headers: buildHeaders() });
+            if (!resp.ok) {
+                onToast(`Supplier items failed (${resp.status})`, 'error');
                 return [];
-            };
-            const arr = extractArray(data);
+            }
+            const data: unknown = await resp.json().catch(() => ({}));
+            const arr = extractArrayPayload(data);
             return arr.map((p, idx): ProductOption => {
-                const obj = (typeof p === 'object' && p !== null) ? p as Record<string, unknown> : {};
-                const idRaw = obj.id ?? obj.itemId ?? idx + 1;
-                const nameRaw = obj.name ?? obj.itemName ?? `Product ${idx + 1}`;
-                const priceRaw = obj.price ?? obj.unitPrice ?? obj.cost ?? 0;
-                const supplierRaw = obj.supplier ?? STATIC_SUPPLIER.name; // fallback to static supplier name
+                const o: RawSupplierItem = (typeof p === 'object' && p !== null) ? p as RawSupplierItem : {};
+                const idRaw = o.id ?? o.itemId ?? idx + 1;
+                const nameRaw = o.name ?? o.itemName ?? `Product ${idx + 1}`;
+                const priceRaw = o.price ?? o.unitPrice ?? o.cost ?? 0;
+                const supplierRaw = o.supplier ?? supplierId;
                 return {
                     id: Number(idRaw),
                     name: String(nameRaw),
@@ -147,6 +192,10 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
                     supplier: String(supplierRaw)
                 };
             });
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Error obteniendo productos del supplier';
+            onToast(msg, 'error');
+            return [];
         } finally {
             setLoadingProducts(false);
         }
@@ -219,7 +268,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
         return data as PurchaseOrderDTO;
     };
 
-    // Cancelar orden (asunción de endpoint cancel-purchase-order enviando palabra clave CANCEL)
+    // Cancelar orden
     const cancelPurchaseOrder = async (ordId: number) => {
         const resp = await fetch(`${ADMIN_BASE}/cancel-purchase-order?orderId=${ordId}&status=CANCEL`, {
             method: 'POST',
@@ -238,27 +287,31 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
     // Modal open handler
     const openCreateOrderModal = async () => {
         setStep('supplier');
-        setSelectedSupplierId(STATIC_SUPPLIER.id); // preselecciona 'SUP001'
+        setSelectedSupplierId(null); // ya no es estático
         setOrderItems([]);
         setCurrentProductId(null);
         setCurrentQuantity(1);
         setOrderId(null);
+        setProducts([]);
         setShowCreateModal(true);
-        try {
-            const prods = await fetchProducts();
-            setSuppliers([STATIC_SUPPLIER]);
-            setProducts(prods);
-        } catch { /* ignore */ }
+        const list = await fetchSuppliers();
+        setSuppliers(list);
+        if (list.length === 0) onToast('No hay suppliers disponibles', 'warning');
     };
 
     // Step transitions
     const continueToItems = async () => {
         if (!selectedSupplierId) return;
         try {
+            // Inicializar orden primero
             const po = await initializePurchaseOrder(selectedSupplierId);
             setOrderId(po.orderId);
-            setOrderItems([]); // orden recién inicializada sin items
+            setOrderItems([]);
             onToast(`Orden inicializada #${po.orderId}`, 'success');
+            // Traer productos para ese supplier
+            const prods = await fetchSupplierItems(selectedSupplierId);
+            setProducts(prods);
+            if (prods.length === 0) onToast('El supplier no tiene productos disponibles', 'info');
             setStep('items');
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Error inicializando orden';
@@ -285,6 +338,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
         setCurrentProductId(null);
         setCurrentQuantity(1);
         setOrderId(null);
+        setProducts([]);
     };
 
     // Item confirmation
@@ -343,7 +397,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
     // Final submission
     const finishOrder = async () => {
         if (!selectedSupplierId) { onToast('Supplier is required', 'error'); return; }
-        if (!orderId) { onToast('La orden no está inicializada', 'error'); return; }
+        if (!orderId) { onToast('La orden aún no está inicializada', 'error'); return; }
         if (orderItems.length === 0) { onToast('Add at least one item', 'error'); return; }
         try {
             const finalized = await finalizePurchaseOrder(orderId);
@@ -360,6 +414,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
             setCurrentProductId(null);
             setCurrentQuantity(1);
             setOrderId(null);
+            setProducts([]);
         }
     };
 
@@ -424,20 +479,23 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
                 {step === 'supplier' && (
                     <>
                         <Modal.Body>
-                            {/* Supplier selector with only SUP001 option */}
                             <Form>
                                 <Form.Group controlId="supplierSelect">
                                     <Form.Label>Supplier *</Form.Label>
-                                    <Form.Select
-                                        value={selectedSupplierId ?? ''}
-                                        onChange={(e) => setSelectedSupplierId(e.target.value || null)}
-                                    >
-                                        <option value="">Select a supplier</option>
-                                        {suppliers.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </Form.Select>
-                                    <Form.Text className="text-muted">Only SUP001 is available at the moment.</Form.Text>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <Form.Select
+                                            value={selectedSupplierId ?? ''}
+                                            onChange={(e) => setSelectedSupplierId(e.target.value || null)}
+                                            disabled={loadingSuppliers}
+                                        >
+                                            <option value="">Select a supplier</option>
+                                            {suppliers.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </Form.Select>
+                                        {loadingSuppliers && <Spinner animation="border" size="sm" />}
+                                    </div>
+                                    <Form.Text className="text-muted">Seleccione un supplier para continuar.</Form.Text>
                                 </Form.Group>
                             </Form>
                         </Modal.Body>
@@ -464,7 +522,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
                     <>
                         <Modal.Body>
                             <div className="mb-3">
-                                <div className="text-muted small mb-2">Supplier: <strong>{STATIC_SUPPLIER.name}</strong></div>
+                                <div className="text-muted small mb-2">Supplier: <strong>{selectedSupplier ? selectedSupplier.name : 'N/A'}</strong></div>
                                 <Form>
                                     <Row className="g-2 align-items-end">
                                         <Col md={8}>
@@ -569,3 +627,4 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ onToast }) => {
 };
 
 export default InventoryStatus;
+
