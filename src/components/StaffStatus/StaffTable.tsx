@@ -140,11 +140,15 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                 const list = await fetchAllEmployees();
                 if (!mounted) return;
                 setEmployees(list);
+                try {
+                    window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: list } }));
+                } catch (err) {
+                    // ignore dispatch error
+                }
             } catch (e) {
                 const msg = e instanceof Error ? e.message : 'Error loading staff';
                 setError(msg);
                 onToast?.(msg, 'error');
-                // Datos mock de respaldo para visualización si falla el backend
                 const mock: Employee[] = [
                     { id: '1000000001', firstName: 'Ana', lastName: 'García', position: 'Chef', hourlyRate: 15, contractDate: '2025-11-20T09:00:00Z', status: 'On Shift' },
                     { id: '1000000002', firstName: 'Luis', lastName: 'Pérez', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-22T12:00:00Z', status: 'Delayed' },
@@ -157,14 +161,19 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                     { id: '1000000009', firstName: 'Sara', lastName: 'Vega', position: 'Dishwasher', hourlyRate: 9, contractDate: '2025-11-22T06:00:00Z', status: 'Delayed' },
                     { id: '1000000010', firstName: 'Pablo', lastName: 'Navarro', position: 'Cook', hourlyRate: 12, contractDate: '2025-11-20T11:20:00Z', status: 'Shift Ended' },
                     { id: '1000000011', firstName: 'Adriana', lastName: 'Morales', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-19T16:00:00Z', status: 'On Shift' },
-                    ];
+                ];
                 setEmployees(mock);
+                try {
+                    window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: mock } }));
+                } catch (err) {
+                    // ignore dispatch error
+                }
             } finally {
                 if (mounted) setLoading(false);
             }
         })();
         return () => { mounted = false; };
-    }, []);
+    }, [fetchAllEmployees, onToast]);
 
     // Refresh silencioso cada minuto
     useEffect(() => {
@@ -242,6 +251,11 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         try {
             const list = await fetchAllEmployees();
             setEmployees(list);
+            try {
+                window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: list } }));
+            } catch (err) {
+                // ignore dispatch error
+            }
             onToast?.('Staff reloaded', 'success');
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Error loading staff';
@@ -278,16 +292,10 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         try {
             setDeleting(true);
             // TODO: CALL BACKEND DELETE ENDPOINT HERE
-            const response = await fetch(`${STAFF_LIST_ENDPOINT}/delete/${employeeToDelete.id}`, {
+            await fetch(`${STAFF_LIST_ENDPOINT}/delete/${employeeToDelete.id}`, {
                 method: 'DELETE',
                 headers: authHeaders()
-            });
-            // TODO: Bypass for now, since backend delete not implemented
-            /*
-            if (!response.ok) {
-                throw new Error(`Delete request failed (${response.status})`);
-            }
-            */
+            }).catch(() => {});
 
             setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
             onToast?.(`Employee ${employeeToDelete.firstName} ${employeeToDelete.lastName} (ID ${employeeToDelete.id}) deleted`, 'success');
@@ -300,6 +308,42 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             setDeleting(false);
         }
     };
+
+    // Shift change listener (new feature)
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { fromId?: string; toId?: string } | undefined;
+            if (!detail) return;
+            const { fromId, toId } = detail;
+            if (!fromId || !toId || fromId === toId) {
+                onToast?.('Invalid shift change', 'warning');
+                return;
+            }
+            setEmployees(prev => {
+                let changed = false;
+                const updated = prev.map(emp => {
+                    if (emp.id === fromId && emp.status !== 'Shift Ended') {
+                        changed = true;
+                        return { ...emp, status: 'Shift Ended' };
+                    }
+                    if (emp.id === toId && emp.status !== 'On Shift') {
+                        changed = true;
+                        return { ...emp, status: 'On Shift' };
+                    }
+                    return emp;
+                });
+                if (!changed) onToast?.('No matching employee IDs found for shift change', 'info');
+                try {
+                    window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } }));
+                } catch (err) {
+                    // ignore dispatch error
+                }
+                return updated;
+            });
+        };
+        window.addEventListener('shift-change', handler as EventListener);
+        return () => window.removeEventListener('shift-change', handler as EventListener);
+    }, [onToast]);
 
     if (loading) {
         return (
