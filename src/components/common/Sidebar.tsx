@@ -1,4 +1,4 @@
-import {type JSX, useState} from 'react';
+import {type JSX, useState, useEffect} from 'react';
 import { Nav, Modal } from 'react-bootstrap';
 import {
     House,
@@ -21,6 +21,7 @@ type SidebarProps = {
     onSectionChange: (section: string) => void;
     userName?: string;
     userType?: string;
+    userId?: string; // added to correlate role updates
 };
 
 type NavItem = {
@@ -31,8 +32,23 @@ type NavItem = {
     active?: boolean;
 };
 
-const Sidebar = ({ activeSection, onSectionChange, userName, userType }: SidebarProps) => {
+const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
+    const [currentType, setCurrentType] = useState<string | undefined>(userType);
+
+    useEffect(() => { setCurrentType(userType); }, [userType]);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { id?: string; newType?: string } | undefined;
+            if (!detail) return;
+            if (detail.id && userId && detail.id === userId && detail.newType) {
+                setCurrentType(detail.newType.toUpperCase());
+            }
+        };
+        window.addEventListener('user-role-updated', handler as EventListener);
+        return () => window.removeEventListener('user-role-updated', handler as EventListener);
+    }, [userId]);
 
     // Function to format the user type (default fallback EMPLOYEE)
     const formatUserType = (type?: string) => {
@@ -107,7 +123,7 @@ const Sidebar = ({ activeSection, onSectionChange, userName, userType }: Sidebar
                     </div>
                     <div>
                         <small className="text-muted">{getDisplayName(userName)}</small>
-                        <div className="fw-bold">{formatUserType(userType)}</div>
+                        <div className="fw-bold">{formatUserType(currentType)}</div>
                     </div>
                 </div>
             </div>

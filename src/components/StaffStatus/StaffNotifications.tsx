@@ -1,88 +1,65 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Badge } from 'react-bootstrap';
 import { InfoCircle } from 'react-bootstrap-icons';
 import type { Employee } from './StaffTable';
 
-// Normalización de roles para agrupar
-const ROLE_MAP: Record<string, 'Chef' | 'Waiter' | 'Manager' | 'Other'> = {
-  chef: 'Chef',
-  cook: 'Chef',
-  'sous chef': 'Chef',
-  waiter: 'Waiter',
-  waitress: 'Waiter',
-  server: 'Waiter',
-  bartender: 'Waiter', // podemos considerarlo dentro de Waiter para el indicador
-  host: 'Waiter',
-  hostess: 'Waiter',
-  manager: 'Manager',
-  admin: 'Manager',
-  administrator: 'Manager'
+type RoleKey = 'Chef' | 'Waiter' | 'Administrator' | 'Other';
+
+const classifyPosition = (posRaw: string): RoleKey => {
+  const pos = posRaw?.trim().toLowerCase();
+  if (pos === 'chef') return 'Chef';
+  if (pos === 'waiter') return 'Waiter';
+  // Treat both 'admin' and 'administrator' as Administrator (exactly from position)
+  if (pos === 'admin' || pos === 'administrator') return 'Administrator';
+  return 'Other';
 };
 
 interface ActiveStats {
   total: number;
   chef: number;
   waiter: number;
-  manager: number;
+  administrator: number;
 }
 
-const getRoleGroup = (raw: string): 'Chef' | 'Waiter' | 'Manager' | 'Other' => {
-  const key = raw.trim().toLowerCase();
-  return ROLE_MAP[key] ?? 'Other';
-};
-
 const StaffNotifications: React.FC = () => {
-  const [stats, setStats] = useState<ActiveStats>({ total: 0, chef: 0, waiter: 0, manager: 0 });
+  const [stats, setStats] = useState<ActiveStats>({ total: 0, chef: 0, waiter: 0, administrator: 0 });
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const recompute = useCallback((employees: Employee[]) => {
+    // Only count employees with status strictly equal to 'On Shift'
     const active = employees.filter(e => e.status === 'On Shift');
-    let chef = 0, waiter = 0, manager = 0;
+    let chef = 0, waiter = 0, administrator = 0;
     active.forEach(e => {
-      const group = getRoleGroup(e.position);
-      if (group === 'Chef') chef++; else if (group === 'Waiter') waiter++; else if (group === 'Manager') manager++;
+      const role = classifyPosition(e.position);
+      if (role === 'Chef') chef++;
+      else if (role === 'Waiter') waiter++;
+      else if (role === 'Administrator') administrator++;
     });
-    setStats({ total: active.length, chef, waiter, manager });
+    setStats({ total: active.length, chef, waiter, administrator });
     setLastUpdated(new Date());
   }, []);
 
   useEffect(() => {
-    // Intentar obtener snapshot inicial si StaffTable ya cargó
-    const initialListener = (e: Event) => {
+    // Listen for the snapshot broadcast from StaffTable
+    const listener = (e: Event) => {
       const detail = (e as CustomEvent).detail as { employees?: Employee[] } | undefined;
       if (detail?.employees) recompute(detail.employees);
     };
-    window.addEventListener('staff-updated', initialListener as EventListener);
-    return () => window.removeEventListener('staff-updated', initialListener as EventListener);
+    window.addEventListener('staff-updated', listener as EventListener);
+    return () => window.removeEventListener('staff-updated', listener as EventListener);
   }, [recompute]);
 
-  useEffect(() => {
-    // Escuchar cambios de turno directamente
-    const shiftListener = (e: Event) => {
-      // El evento shift-change solo trae IDs, esperamos que StaffTable despache luego staff-updated
-      // No hacemos nada aquí; la actualización llega por staff-updated.
-    };
-    window.addEventListener('shift-change', shiftListener as EventListener);
-    return () => window.removeEventListener('shift-change', shiftListener as EventListener);
-  }, []);
-
-  const formatDate = (d: Date): string => {
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
-
-  const plural = (count: number, singular: string, pluralWord: string): string => {
-    return `${count} ${count === 1 ? singular : pluralWord}`;
-  };
+  const formatDate = (d: Date): string => d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const plural = (count: number, singular: string, pluralWord: string): string => `${count} ${count === 1 ? singular : pluralWord}`;
 
   return (
     <div className="staff-active-indicator" style={{ background: '#D5F9D1', border: '1px solid #b5e6ad', borderRadius: '10px', padding: '10px 14px', fontSize: '0.9rem', lineHeight: 1.25 }}>
       <div className="d-flex align-items-center justify-content-between mb-1">
         <div className="d-flex align-items-center gap-2 fw-semibold" style={{ fontSize: '0.95rem' }}>
-          <InfoCircle size={16} /> EMPLEADOS ACTIVOS ({formatDate(lastUpdated)})
+          <InfoCircle size={16} /> ACTIVE EMPLOYEES ({formatDate(lastUpdated)})
         </div>
       </div>
       <div className="text-dark" style={{ fontSize: '0.85rem' }}>
-        {plural(stats.chef, 'Cocinero', 'Cocineros')} - {plural(stats.waiter, 'Mesero', 'Meseros')} - {plural(stats.manager, 'Administrador', 'Administradores')}
+        {plural(stats.chef, 'Chef', 'Chefs')} - {plural(stats.waiter, 'Waiter', 'Waiters')} - {plural(stats.administrator, 'Administrator', 'Administrators')}
       </div>
     </div>
   );

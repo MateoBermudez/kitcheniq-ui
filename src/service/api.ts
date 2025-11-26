@@ -515,4 +515,65 @@ export const initiateDispatch = (orderId: number) => {
     return apiClient.post(`/kitcheniq/api/v1/suppliers/initiate-dispatch`, null, { params: { orderId } });
 }
 
+// ==================== EMPLOYEES (ADMIN) ====================
+export type EmployeeTypeCode = 'ADMIN' | 'CHEF' | 'WAITER';
+
+export interface EmployeeCreateRequest {
+    id: string;             // employee ID
+    password: string;       // initial password
+    name: string;           // first name(s)
+    lastName: string;       // last name(s)
+    type: EmployeeTypeCode; // ADMIN | CHEF | WAITER
+    hourlyRate: number;
+}
+
+export interface EmployeeEditRequest {
+    name: string;
+    lastName: string;
+    employeeType: EmployeeTypeCode; // ADMIN | CHEF | WAITER
+    hourlyRate: number;
+}
+
+export const createEmployee = async (payload: EmployeeCreateRequest) => {
+    try {
+        const backendPayload = {
+            // IDs
+            id: payload.id,
+            employeeId: payload.id,
+            // Credentials & names
+            password: payload.password,
+            name: payload.name,
+            lastName: payload.lastName,
+            // Role (both keys for compatibility)
+            type: payload.type,
+            employeeType: payload.type,
+            // Compensation
+            hourlyRate: payload.hourlyRate
+        } as const;
+        const resp = await ordersApiClient.post('/admin/register-employee', backendPayload);
+        return resp.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            const data = (error.response?.data as any);
+            const msg = (typeof data === 'string') ? data : (data?.message || error.message);
+            throw new Error(msg);
+        }
+        throw error as Error;
+    }
+};
+
+export const editEmployee = async (id: string, payload: EmployeeEditRequest) => {
+    try {
+        const resp = await ordersApiClient.put(`/admin/edit-employee/${id}`, payload);
+        return resp.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            const data = (error.response?.data as any);
+            const msg = (typeof data === 'string') ? data : (data?.message || error.message);
+            throw new Error(msg);
+        }
+        throw error as Error;
+    }
+};
+
 export default apiClient;

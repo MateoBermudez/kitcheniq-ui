@@ -4,6 +4,7 @@ import { Clock, PersonPlus, Person, PersonBadge, Calendar, CashCoin, CheckCircle
 import StaffTable from './StaffTable';
 import StaffSearch from './StaffSearch';
 import StaffNotifications from './StaffNotifications';
+import { createEmployee, type EmployeeTypeCode } from '../../service/api';
 
 interface StaffStatusProps {
     onToast?: (msg: string, type?: string) => void;
@@ -44,42 +45,62 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
         setNewEmployee(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleCreateEmployee = () => {
+    const ALLOWED_POSITIONS: Array<'Admin' | 'Chef' | 'Waiter'> = ['Admin', 'Chef', 'Waiter'];
+
+    const toEmployeeType = (position: string): EmployeeTypeCode => {
+        const p = position.trim().toUpperCase();
+        if (p === 'ADMIN' || p === 'CHEF' || p === 'WAITER') return p as EmployeeTypeCode;
+        return 'ADMIN';
+    };
+
+    const handleCreateEmployee = async () => {
         // Validación básica
-        if (!newEmployee.id.trim()) {
-            onToast?.('Employee ID is required', 'error');
-            return;
+        if (!newEmployee.id.trim()) { onToast?.('Employee ID is required', 'error'); return; }
+        if (!newEmployee.firstName.trim()) { onToast?.('First name is required', 'error'); return; }
+        if (!newEmployee.lastName.trim()) { onToast?.('Last name is required', 'error'); return; }
+        if (!newEmployee.position.trim() || !ALLOWED_POSITIONS.includes(newEmployee.position as any)) {
+            onToast?.('Position must be Admin, Chef, or Waiter', 'error'); return;
         }
-        if (!newEmployee.firstName.trim()) {
-            onToast?.('First name is required', 'error');
-            return;
-        }
-        if (!newEmployee.lastName.trim()) {
-            onToast?.('Last name is required', 'error');
-            return;
-        }
-        if (!newEmployee.position.trim()) {
-            onToast?.('Position is required', 'error');
-            return;
-        }
-        if (!newEmployee.hourlyRate.trim() || isNaN(parseFloat(newEmployee.hourlyRate))) {
-            onToast?.('Valid hourly rate is required', 'error');
-            return;
+        const rate = parseFloat(newEmployee.hourlyRate);
+        if (!newEmployee.hourlyRate.trim() || isNaN(rate) || rate <= 0) {
+            onToast?.('Hourly rate must be greater than 0', 'error'); return;
         }
 
-        // Aquí iría la llamada al backend
-        onToast?.(`Employee ${newEmployee.firstName} ${newEmployee.lastName} created successfully!`, 'success');
+        try {
+            const payload = {
+                id: newEmployee.id.trim(),
+                password: newEmployee.id.trim(), // initial password = ID (can be changed later)
+                name: newEmployee.firstName.trim(),
+                lastName: newEmployee.lastName.trim(),
+                type: toEmployeeType(newEmployee.position),
+                hourlyRate: rate
+            } as const;
+            await createEmployee(payload);
 
-        // Resetear formulario y cerrar modal
-        setNewEmployee({
-            id: '',
-            firstName: '',
-            lastName: '',
-            position: '',
-            hourlyRate: '',
-            contractDate: new Date().toISOString().split('T')[0]
-        });
-        setShowCreateModal(false);
+            // Persist contract date locally (not sent to backend)
+            try {
+                const key = 'staffContractMap';
+                const raw = localStorage.getItem(key);
+                const map = raw ? JSON.parse(raw) as Record<string,string> : {};
+                map[payload.id] = newEmployee.contractDate; // keep YYYY-MM-DD
+                localStorage.setItem(key, JSON.stringify(map));
+            } catch { /* ignore */ }
+
+            onToast?.(`Employee ${payload.name} ${payload.lastName} created successfully!`, 'success');
+
+            // Reset form and close
+            setNewEmployee({
+                id: '', firstName: '', lastName: '', position: '', hourlyRate: '',
+                contractDate: new Date().toISOString().split('T')[0]
+            });
+            setShowCreateModal(false);
+
+            // notify table to reload from backend
+            try { window.dispatchEvent(new CustomEvent('staff-reload')); } catch { /* ignore */ }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Could not create employee';
+            onToast?.(msg, 'error');
+        }
     };
 
     const handleShiftInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,14 +238,9 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         className="shadow-sm"
                                     >
                                         <option value="">Select a position</option>
+                                        <option value="Admin">Admin</option>
                                         <option value="Chef">Chef</option>
-                                        <option value="Sous Chef">Sous Chef</option>
-                                        <option value="Cook">Cook</option>
                                         <option value="Waiter">Waiter</option>
-                                        <option value="Bartender">Bartender</option>
-                                        <option value="Hostess">Hostess</option>
-                                        <option value="Dishwasher">Dishwasher</option>
-                                        <option value="Manager">Manager</option>
                                     </Form.Select>
                                 </Form.Group>
                             </Col>
@@ -271,7 +287,7 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         value={newEmployee.hourlyRate}
                                         onChange={handleInputChange}
                                         placeholder="e.g. 15.00"
-                                        min="0"
+                                        min="0.01"
                                         step="0.01"
                                         required
                                         className="shadow-sm"

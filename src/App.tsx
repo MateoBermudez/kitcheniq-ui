@@ -191,6 +191,7 @@ function MainLayout() {
                     onSectionChange={handleSectionChange}
                     userName={user?.name}
                     userType={user?.type}
+                    userId={user?.id || (user as any)?.userId}
                 />
                 <div className="flex-grow-1">
                     {isSupplierUser ? (

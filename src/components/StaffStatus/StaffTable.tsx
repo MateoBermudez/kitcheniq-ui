@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Table, Spinner, Alert, Button, Dropdown, Pagination, Form, InputGroup, Modal } from 'react-bootstrap';
-import { ThreeDots, PencilSquare, Trash, XCircle } from 'react-bootstrap-icons';
+import { ThreeDots, PencilSquare, Trash, XCircle, CheckCircle } from 'react-bootstrap-icons';
+import { editEmployee, type EmployeeEditRequest, type EmployeeTypeCode } from '../../service/api';
 
 interface StaffTableProps {
     searchTerm: string;
@@ -55,6 +56,9 @@ const EMPLOYEE_TYPE_TO_POSITION: Record<string,string> = {
     'WAITER': 'Waiter'
 };
 
+const LS_STAFF_STATUS_KEY = 'staffStatusMap';
+const LS_CONTRACT_KEY = 'staffContractMap';
+
 const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -68,6 +72,12 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
     const [confirmInput, setConfirmInput] = useState<string>('');
     const [deleting, setDeleting] = useState<boolean>(false);
+
+    // Edit mode state
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState<{ name: string; lastName: string; position: string; hourlyRate: string }>({ name: '', lastName: '', position: '', hourlyRate: '' });
+    const [showEditModal, setShowEditModal] = useState<boolean>(false);
+    const [savingEdit, setSavingEdit] = useState<boolean>(false);
 
     const authHeaders = (): HeadersInit => {
         const token = localStorage.getItem(TOKEN_KEY);
@@ -86,7 +96,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     };
 
     const mapRawEmployees = useCallback((arr: RawEmployee[]): Employee[] => {
-        return arr.map((raw) => {
+        return arr.map((raw, idx) => {
             // Intentar separar nombre completo si sólo viene "name"
             let firstName = raw.firstName ?? '';
             let lastName = raw.lastName ?? '';
@@ -99,9 +109,9 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             const hourlyRate = typeof raw.hourlyRate === 'number' ? raw.hourlyRate : (typeof raw.rate === 'number' ? raw.rate : 0);
             const position = raw.position || raw.role || 'Employee';
 
-            // Forzar ID a string; si no viene, generar una cédula mock de 10 dígitos
+            // Forzar ID a string; si no viene, generar una cédula fallback estable usando timestamp+index
             const rawId = (raw as { id?: string | number; employeeId?: string | number }).id ?? (raw as { id?: string | number; employeeId?: string | number }).employeeId;
-            const id = rawId != null ? String(rawId) : '';
+            const id = rawId != null ? String(rawId) : `local-${Date.now()}-${idx}`;
 
             return {
                 id,
@@ -116,55 +126,128 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     }, []);
 
     const fetchAllEmployees = useCallback(async (): Promise<Employee[]> => {
-        const resp = await fetch(STAFF_LIST_ENDPOINT, { headers: authHeaders() });
-        if (!resp.ok) {
-            throw new Error(resp.status === 401 ? 'Unauthorized' : `Staff request failed (${resp.status})`);
-        }
-        let data: unknown;
-        try { data = await resp.json(); } catch { throw new Error('Invalid staff response'); }
-        const extractArray = (src: unknown): RawEmployee[] => {
-            if (Array.isArray(src)) return src as RawEmployee[];
-            if (typeof src === 'object' && src !== null) {
-                const obj = src as Record<string, unknown>;
-                for (const k of ['data','employees','staff','staffList']) {
-                    const v = obj[k];
-                    if (Array.isArray(v)) return v as RawEmployee[];
-                }
+        const controller = new AbortController();
+        const TIMEOUT_MS = 10000; // 10s timeout
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+            const resp = await fetch(STAFF_LIST_ENDPOINT, { headers: authHeaders(), signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!resp.ok) {
+                // intentar leer body para diagnóstico
+                let bodyText = '';
+                try { bodyText = await resp.text(); } catch (e) { bodyText = `<unreadable body: ${String(e)}>`; }
+                const errMsg = resp.status === 401 ? 'Unauthorized' : `Staff request failed (${resp.status})${bodyText ? ': ' + bodyText : ''}`;
+                throw new Error(errMsg);
             }
-            return [];
-        };
-        const rawArr = extractArray(data);
 
-        // Detectar si todos los elementos parecen EmployeeDTO (id, name, employeeType)
-        const looksLikeEmployeeDTO = (o: RawEmployee): boolean => {
-            return !!o && typeof o === 'object' && 'id' in o && 'name' in o && 'employeeType' in o;
-        };
+            let data: unknown;
+            try { data = await resp.json(); } catch { throw new Error('Invalid staff response'); }
 
-        if (rawArr.length > 0 && rawArr.every(looksLikeEmployeeDTO)) {
-            // Mapeo específico para EmployeeDTO
-            return rawArr.map(dto => {
-                const id = dto.id != null ? String(dto.id) : '';
-                const fullName = (dto.name || '').trim();
-                const [firstNameRaw, ...rest] = fullName.split(/\s+/);
-                const firstName = firstNameRaw || 'Unknown';
-                const lastName = rest.join(' ');
-                const employeeTypeRaw = (dto.employeeType || '').toUpperCase();
-                const position = EMPLOYEE_TYPE_TO_POSITION[employeeTypeRaw] || (employeeTypeRaw ? employeeTypeRaw.charAt(0) + employeeTypeRaw.slice(1).toLowerCase() : 'Employee');
-                return {
-                    id,
-                    firstName,
-                    lastName,
-                    position,
-                    hourlyRate: 0,
-                    contractDate: new Date().toISOString(),
-                    status: 'Shift Ended'
-                };
-            });
+            const extractArray = (src: unknown): RawEmployee[] => {
+                if (Array.isArray(src)) return src as RawEmployee[];
+                if (typeof src === 'object' && src !== null) {
+                    const obj = src as Record<string, unknown>;
+                    for (const k of ['data','employees','staff','staffList']) {
+                        const v = obj[k];
+                        if (Array.isArray(v)) return v as RawEmployee[];
+                    }
+                }
+                return [];
+            };
+            const rawArr = extractArray(data);
+
+            // Detectar si todos los elementos parecen EmployeeDTO (id, name, employeeType)
+            const looksLikeEmployeeDTO = (o: RawEmployee): boolean => {
+                return !!o && typeof o === 'object' && 'id' in o && 'name' in o && 'employeeType' in o;
+            };
+
+            if (rawArr.length > 0 && rawArr.every(looksLikeEmployeeDTO)) {
+                return rawArr.map((dto, idx) => {
+                    const id = dto.id != null ? String(dto.id) : `local-${Date.now()}-${idx}`;
+                    const fullName = (dto.name || '').trim();
+                    const [firstNameRaw, ...rest] = fullName.split(/\s+/);
+                    const firstName = firstNameRaw || 'Unknown';
+                    // Prefer backend lastName field; fallback to derived remainder
+                    const lastName = (dto.lastName ?? '').trim() || rest.join(' ');
+                    const employeeTypeRaw = (dto.employeeType || '').toUpperCase();
+                    const position = EMPLOYEE_TYPE_TO_POSITION[employeeTypeRaw] || (employeeTypeRaw ? employeeTypeRaw.charAt(0) + employeeTypeRaw.slice(1).toLowerCase() : 'Employee');
+                    const hourlyRate = typeof dto.hourlyRate === 'number' ? dto.hourlyRate : 0;
+                    return {
+                        id,
+                        firstName,
+                        lastName,
+                        position,
+                        hourlyRate,
+                        contractDate: new Date().toISOString(),
+                        status: 'Shift Ended' as EmployeeStatus
+                    } as Employee;
+                });
+            }
+
+            return mapRawEmployees(rawArr);
+        } catch (err) {
+            if (err && (err as Error).name === 'AbortError') {
+                throw new Error('Request timed out while fetching staff');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        // Fallback al mapeo genérico existente
-        return mapRawEmployees(rawArr);
     }, [mapRawEmployees]);
+
+    // LocalStorage helpers for status persistence
+    const loadStatusMap = useCallback((): Record<string, EmployeeStatus> => {
+        try {
+            const raw = localStorage.getItem(LS_STAFF_STATUS_KEY);
+            if (!raw) return {};
+            const obj = JSON.parse(raw) as Record<string, string>;
+            const map: Record<string, EmployeeStatus> = {};
+            Object.entries(obj).forEach(([id, st]) => {
+                const s = (st || '').toLowerCase();
+                if (s === 'on shift') map[id] = 'On Shift';
+                else if (s === 'delayed') map[id] = 'Delayed';
+                else if (s === 'shift ended') map[id] = 'Shift Ended';
+            });
+            return map;
+        } catch {
+            return {};
+        }
+    }, []);
+
+    const saveStatusMap = useCallback((map: Record<string, EmployeeStatus>) => {
+        try { localStorage.setItem(LS_STAFF_STATUS_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+    }, []);
+
+    const applyStoredStatuses = useCallback((list: Employee[]): Employee[] => {
+        const map = loadStatusMap();
+        if (!map || Object.keys(map).length === 0) return list;
+        return list.map(emp => (map[emp.id] ? { ...emp, status: map[emp.id] } : emp));
+    }, [loadStatusMap]);
+
+    const applyStoredContracts = useCallback((list: Employee[]): Employee[] => {
+        try {
+            const raw = localStorage.getItem(LS_CONTRACT_KEY);
+            if (!raw) return list;
+            const map = JSON.parse(raw) as Record<string,string>;
+            // Keep plain 'YYYY-MM-DD' string to avoid timezone shifts
+            return list.map(emp => (map[emp.id] ? { ...emp, contractDate: map[emp.id] } : emp));
+        } catch {
+            return list;
+        }
+    }, []);
+
+    // Helper: set list and broadcast 'staff-updated' (apply LS overrides)
+    const setListAndBroadcast = useCallback((list: Employee[]) => {
+        const withStatus = applyStoredStatuses(list);
+        const applied = applyStoredContracts(withStatus);
+        setEmployees(applied);
+        try {
+            window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: applied } }));
+        } catch {
+            // ignore
+        }
+    }, [applyStoredStatuses, applyStoredContracts]);
 
     // Carga inicial
     useEffect(() => {
@@ -175,34 +258,19 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             try {
                 const list = await fetchAllEmployees();
                 if (!mounted) return;
-                setEmployees(list);
+                setListAndBroadcast(list);
             } catch (e) {
                 const msg = e instanceof Error ? e.message : 'Error loading staff';
                 setError(msg);
                 onToast?.(msg, 'error');
-                // Datos mock de respaldo para visualización si falla el backend
-                const mock: Employee[] = [
-                    { id: '1000000001', firstName: 'Ana', lastName: 'García', position: 'Chef', hourlyRate: 15, contractDate: '2025-11-20T09:00:00Z', status: 'On Shift' },
-                    { id: '1000000002', firstName: 'Luis', lastName: 'Pérez', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-22T12:00:00Z', status: 'Delayed' },
-                    { id: '1000000003', firstName: 'María', lastName: 'López', position: 'Sous Chef', hourlyRate: 14, contractDate: '2025-11-21T08:30:00Z', status: 'Shift Ended' },
-                    { id: '1000000004', firstName: 'Carlos', lastName: 'Santos', position: 'Waiter', hourlyRate: 11, contractDate: '2025-11-19T10:15:00Z', status: 'On Shift' },
-                    { id: '1000000005', firstName: 'Lucía', lastName: 'Martínez', position: 'Hostess', hourlyRate: 12, contractDate: '2025-11-23T14:00:00Z', status: 'Delayed' },
-                    { id: '1000000006', firstName: 'Jorge', lastName: 'Ruiz', position: 'Chef', hourlyRate: 16, contractDate: '2025-11-20T07:45:00Z', status: 'Shift Ended' },
-                    { id: '1000000007', firstName: 'Elena', lastName: 'Hernández', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-24T13:00:00Z', status: 'On Shift' },
-                    { id: '1000000008', firstName: 'Raúl', lastName: 'Castro', position: 'Bartender', hourlyRate: 13, contractDate: '2025-11-21T18:00:00Z', status: 'On Shift' },
-                    { id: '1000000009', firstName: 'Sara', lastName: 'Vega', position: 'Dishwasher', hourlyRate: 9, contractDate: '2025-11-22T06:00:00Z', status: 'Delayed' },
-                    { id: '1000000010', firstName: 'Pablo', lastName: 'Navarro', position: 'Cook', hourlyRate: 12, contractDate: '2025-11-20T11:20:00Z', status: 'Shift Ended' },
-                    { id: '1000000011', firstName: 'Adriana', lastName: 'Morales', position: 'Waiter', hourlyRate: 10, contractDate: '2025-11-19T16:00:00Z', status: 'On Shift' },
-                ];
-                setEmployees(mock);
+                // No mock fallback: keep list empty until backend works
             } finally {
                 if (mounted) setLoading(false);
             }
         })();
         return () => { mounted = false; };
-    }, []);
+    }, [fetchAllEmployees, onToast, setListAndBroadcast]);
 
-    // Refresh silencioso cada minuto
     useEffect(() => {
         let mounted = true;
         const intervalId = setInterval(async () => {
@@ -280,7 +348,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         setError(null);
         try {
             const list = await fetchAllEmployees();
-            setEmployees(list);
+            setListAndBroadcast(list);
             onToast?.('Staff reloaded', 'success');
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Error loading staff';
@@ -288,6 +356,24 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             onToast?.(msg, 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const formatContractDate = (value: string): string => {
+        if (!value) return 'N/A';
+        const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value);
+        if (m) {
+            const y = parseInt(m[1], 10);
+            const mo = parseInt(m[2], 10) - 1; // zero-based
+            const d = parseInt(m[3], 10);
+            const dt = new Date(y, mo, d); // local time
+            return dt.toLocaleDateString();
+        }
+        try {
+            const dt = new Date(value);
+            return isNaN(dt.getTime()) ? 'N/A' : dt.toLocaleDateString();
+        } catch {
+            return 'N/A';
         }
     };
 
@@ -322,10 +408,28 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
             });
             if (!response.ok) {
                 onToast?.(`Delete failed (${response.status})`, 'error');
-                return; // evitar throw local
+                return;
             }
 
             setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
+            // clean status in LS
+            const map = loadStatusMap();
+            if (map[employeeToDelete.id]) {
+                delete map[employeeToDelete.id];
+                saveStatusMap(map);
+            }
+            // clean contract in LS
+            try {
+                const raw = localStorage.getItem(LS_CONTRACT_KEY);
+                if (raw) {
+                    const cMap = JSON.parse(raw) as Record<string,string>;
+                    if (cMap[employeeToDelete.id]) {
+                        delete cMap[employeeToDelete.id];
+                        localStorage.setItem(LS_CONTRACT_KEY, JSON.stringify(cMap));
+                    }
+                }
+            } catch { /* ignore */ }
+
             onToast?.(`Employee ${employeeToDelete.firstName} ${employeeToDelete.lastName} (ID ${employeeToDelete.id}) deleted`, 'success');
             setShowDeleteModal(false);
             setEmployeeToDelete(null);
@@ -360,18 +464,109 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                     }
                     return emp;
                 });
+                // persist to LS
+                const map = loadStatusMap();
+                map[fromId] = 'Shift Ended';
+                map[toId] = 'On Shift';
+                saveStatusMap(map);
                 if (!changed) onToast?.('No matching employee IDs found for shift change', 'info');
-                try {
-                    window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } }));
-                } catch (err) {
-                    // ignore dispatch error
-                }
+                try { window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } })); } catch { /* noop */ }
                 return updated;
             });
         };
         window.addEventListener('shift-change', handler as EventListener);
         return () => window.removeEventListener('shift-change', handler as EventListener);
-    }, [onToast]);
+    }, [onToast, loadStatusMap, saveStatusMap]);
+
+    useEffect(() => {
+        const reloadHandler = () => { retryLoad(); };
+        window.addEventListener('staff-reload', reloadHandler as EventListener);
+        return () => window.removeEventListener('staff-reload', reloadHandler as EventListener);
+    }, [retryLoad]);
+
+    // Edit employee feature
+    const POSITIONS: Array<'Admin'|'Chef'|'Waiter'> = ['Admin','Chef','Waiter'];
+    const toEmployeeType = (position: string): EmployeeTypeCode => {
+        const p = position.trim().toUpperCase();
+        if (p === 'ADMIN' || p === 'CHEF' || p === 'WAITER') return p as EmployeeTypeCode;
+        return 'ADMIN';
+    };
+
+    const openEditModal = (emp: Employee) => {
+        if (editingId && editingId !== emp.id) {
+            onToast?.('You can only edit one employee at a time', 'warning');
+            return;
+        }
+        setEditingId(emp.id);
+        setEditForm({ name: emp.firstName, lastName: emp.lastName, position: emp.position, hourlyRate: String(emp.hourlyRate || '') });
+        setShowEditModal(true);
+    };
+
+    const closeEditModal = () => {
+        if (savingEdit) return;
+        setShowEditModal(false);
+        setEditingId(null);
+        setEditForm({ name: '', lastName: '', position: '', hourlyRate: '' });
+    };
+
+    const onEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setEditForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const canSave = useMemo(() => {
+        if (!editingId) return false;
+        if (!editForm.name.trim()) return false;
+        if (!editForm.lastName.trim()) return false;
+        if (!editForm.position.trim() || !POSITIONS.includes(editForm.position as any)) return false;
+        const rate = parseFloat(editForm.hourlyRate);
+        if (isNaN(rate) || rate <= 0) return false;
+        return true;
+    }, [editingId, editForm]);
+
+    const saveEdit = async () => {
+        if (!editingId || !canSave) return;
+        try {
+            setSavingEdit(true);
+            const payload: EmployeeEditRequest = {
+                name: editForm.name.trim(),
+                lastName: editForm.lastName.trim(),
+                employeeType: toEmployeeType(editForm.position),
+                hourlyRate: parseFloat(editForm.hourlyRate)
+            };
+            await editEmployee(editingId, payload);
+            // Update local table
+            setEmployees(prev => prev.map(e => (
+                e.id === editingId
+                    ? { ...e, firstName: payload.name, lastName: payload.lastName, position: editForm.position, hourlyRate: payload.hourlyRate }
+                    : e
+            )));
+            onToast?.('Employee updated successfully', 'success');
+            // Emit role update if current user edited themselves
+            try {
+                const storedUser = localStorage.getItem('userData');
+                if (storedUser) {
+                    const u = JSON.parse(storedUser) as { id?: string; userId?: string };
+                    const currentId = u.id || u.userId;
+                    if (currentId && currentId === editingId) {
+                        window.dispatchEvent(new CustomEvent('user-role-updated', { detail: { id: currentId, newType: payload.employeeType } }));
+                        // also update localStorage type uppercase
+                        localStorage.setItem('userData', JSON.stringify({ ...u, type: payload.employeeType }));
+                    }
+                }
+            } catch { /* ignore */ }
+            setShowEditModal(false);
+            setEditingId(null);
+            setEditForm({ name: '', lastName: '', position: '', hourlyRate: '' });
+            // Optionally broadcast
+            try { window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees } })); } catch { /* ignore */ }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Could not update employee';
+            onToast?.(msg, 'error');
+        } finally {
+            setSavingEdit(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -388,8 +583,12 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         <div>
             {error && (
                 <Alert variant="danger" className="mb-2 d-flex justify-content-between align-items-center">
-                    <span>{error}</span>
-                    <Button variant="outline-light" size="sm" onClick={retryLoad}>Retry</Button>
+                    <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                        <span>{error}</span>
+                    </div>
+                    <div style={{display: 'flex', gap: 8}}>
+                        <Button variant="outline-light" size="sm" onClick={retryLoad}>Retry</Button>
+                    </div>
                 </Alert>
             )}
             {refreshing && (
@@ -423,7 +622,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                             <td>{emp.lastName}</td>
                             <td>{emp.position}</td>
                             <td>${emp.hourlyRate.toFixed(2)}</td>
-                            <td>{new Date(emp.contractDate).toLocaleDateString()}</td>
+                            <td>{formatContractDate(emp.contractDate)}</td>
                             <td>{statusDot(emp.status)}</td>
                             <td>
                                 <Dropdown>
@@ -431,7 +630,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                                         <ThreeDots size={16} />
                                     </Dropdown.Toggle>
                                     <Dropdown.Menu className="dropdown-menu-super" popperConfig={{ strategy: 'fixed' }}>
-                                        <Dropdown.Item onClick={() => onToast?.('Edit employee coming soon', 'info')}>
+                                        <Dropdown.Item onClick={() => openEditModal(emp)}>
                                             <PencilSquare size={16} className="me-2" /> Edit Employee
                                         </Dropdown.Item>
                                         <Dropdown.Item onClick={() => openDeleteModal(emp)} className="text-danger">
@@ -520,6 +719,65 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                     </Button>
                     <Button variant="danger" onClick={confirmDelete} disabled={!canConfirmDelete || deleting}>
                         <Trash size={16} className="me-1" /> {deleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal: Edit Employee */}
+            <Modal show={showEditModal} onHide={closeEditModal} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <PencilSquare size={18} className="me-2" /> Edit Employee
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {editingId ? (
+                        <div>
+                            {/* Read-only context fields */}
+                            <div className="d-flex flex-column gap-2 mb-3">
+                                <div className="d-flex justify-content-between">
+                                    <div className="text-muted">ID Number</div>
+                                    <div className="fw-semibold">{editingId}</div>
+                                </div>
+                                <div className="d-flex justify-content-between">
+                                    <div className="text-muted">Contract Date</div>
+                                    <div className="fw-semibold">{formatContractDate((employees.find(e => e.id === editingId)?.contractDate) || '')}</div>
+                                </div>
+                            </div>
+                            <Form>
+                                <Form.Group className="mb-3" controlId="editName">
+                                    <Form.Label>Name(s)</Form.Label>
+                                    <Form.Control type="text" name="name" value={editForm.name} onChange={onEditInputChange} />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="editLastName">
+                                    <Form.Label>Last Name(s)</Form.Label>
+                                    <Form.Control type="text" name="lastName" value={editForm.lastName} onChange={onEditInputChange} />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="editPosition">
+                                    <Form.Label>Position</Form.Label>
+                                    <Form.Select name="position" value={editForm.position} onChange={onEditInputChange}>
+                                        <option value="Admin">Admin</option>
+                                        <option value="Chef">Chef</option>
+                                        <option value="Waiter">Waiter</option>
+                                    </Form.Select>
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="editHourlyRate">
+                                    <Form.Label>Hourly Rate</Form.Label>
+                                    <Form.Control type="number" name="hourlyRate" value={editForm.hourlyRate} onChange={onEditInputChange} min={0.01} step={0.01} />
+                                </Form.Group>
+                                <div className="small text-muted">ID Number and Contract Date cannot be edited.</div>
+                            </Form>
+                        </div>
+                    ) : (
+                        <div className="text-muted">No employee selected.</div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeEditModal} disabled={savingEdit}>
+                        <XCircle size={16} className="me-1" /> Cancel
+                    </Button>
+                    <Button variant="primary" onClick={saveEdit} disabled={!canSave || savingEdit} style={{ backgroundColor: '#B1E5FF', borderColor: '#B1E5FF', color: '#000' }}>
+                        <CheckCircle size={16} className="me-1" /> {savingEdit ? 'Saving...' : 'Save'}
                     </Button>
                 </Modal.Footer>
             </Modal>
