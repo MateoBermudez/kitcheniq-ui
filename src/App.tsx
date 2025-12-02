@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, type ReactNode } from '
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
+import ProtectedRoute from './components/common/ProtectedRoute';
 import OrderStatus from './components/OrderStatus/OrderStatus';
 import Login from './components/Auth/Login';
 import ToastContainer, {type ToastType} from './components/common/ToastContainer';
@@ -147,8 +148,6 @@ function MainLayout() {
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
-    const isSupplierUser = user?.type === 'SUPPLIER';
-
     // Only derive active section from current path (no redirect logic here to avoid loops)
     useEffect(() => {
         const path = location.pathname;
@@ -193,29 +192,81 @@ function MainLayout() {
                     userType={user?.type}
                 />
                 <div className="flex-grow-1">
-                    {isSupplierUser ? (
-                        <Routes>
-                            <Route path="/supplier" element={<Supplier key="supplier" />} />
-                            <Route path="*" element={<Navigate to="/supplier" replace />} />
-                        </Routes>
-                    ) : (
-                        <Routes>
-                            <Route path="/" element={<Navigate to="/orders" replace />} />
-                            <Route path="/home" element={<div>Home Page</div>} />
-                            <Route path="/orders" element={
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/orders" replace />} />
+
+                        {/* Home - Solo ADMIN */}
+                        <Route path="/home" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div>Home Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Orders - ADMIN, EMPLOYEE, CHEF, WAITER */}
+                        <Route path="/orders" element={
+                            <ProtectedRoute allowedRoles={['ADMIN', 'EMPLOYEE', 'CHEF', 'WAITER']} userType={user?.type}>
                                 <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
-                            } />
-                            <Route path="/inventory" element={<Inventory key="inventory" />} />
-                            <Route path="/supplier" element={<Supplier key="supplier" />} />
-                            <Route path="/menu" element={<div key="menu">Menu Page</div>} />
-                            <Route path="/staff" element={<Staff key="staff" />} />
-                            <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
-                            <Route path="/sales" element={<div key="sales">Sales Page</div>} />
-                            <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
-                            <Route path="/reports" element={<div key="reports">Reports Page</div>} />
-                            <Route path="*" element={<Navigate to="/orders" replace />} />
-                        </Routes>
-                    )}
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Inventory - Solo ADMIN */}
+                        <Route path="/inventory" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <Inventory key="inventory" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Supplier - Solo SUPPLIER */}
+                        <Route path="/supplier" element={
+                            <ProtectedRoute allowedRoles={['SUPPLIER']} userType={user?.type}>
+                                <Supplier key="supplier" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Menu - Solo ADMIN */}
+                        <Route path="/menu" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div key="menu">Menu Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Staff - Solo ADMIN */}
+                        <Route path="/staff" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <Staff key="staff" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Cash Register - Solo ADMIN */}
+                        <Route path="/cash" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div key="cash">Cash Register Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Sales - Solo ADMIN */}
+                        <Route path="/sales" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div key="sales">Sales Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Expenses - Solo ADMIN */}
+                        <Route path="/expenses" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div key="expenses">Expenses Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Reports - Solo ADMIN */}
+                        <Route path="/reports" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <div key="reports">Reports Page</div>
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="*" element={<Navigate to="/orders" replace />} />
+                    </Routes>
                 </div>
                 <ToastContainer
                     toasts={mappedToasts}
