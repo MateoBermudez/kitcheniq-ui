@@ -21,7 +21,6 @@ type SidebarProps = {
     onSectionChange: (section: string) => void;
     userName?: string;
     userType?: string;
-    userId?: string; // added to correlate role updates
 };
 
 type NavItem = {
@@ -56,10 +55,33 @@ const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }:
         return type.toUpperCase();
     };
 
-    // Function to get a display user name (default fallback USER123)
+    // Function to get a display username (default fallback USER123)
     const getDisplayName = (name?: string) => {
         if (!name) return 'USER123';
         return name;
+    };
+
+    const normalizedUserType = formatUserType(userType);
+
+    // Function to filter items based on user type
+    const filterItemsByUserType = (items: NavItem[]): NavItem[] => {
+        // SUPPLIER: only supplier page
+        if (normalizedUserType === 'SUPPLIER') {
+            return items.filter(item => item.key === 'supplier');
+        }
+
+        // EMPLOYEE, CHEF, WAITER: only orders
+        if (['EMPLOYEE', 'CHEF', 'WAITER'].includes(normalizedUserType)) {
+            return items.filter(item => item.key === 'orders');
+        }
+
+        // ADMIN: everything except supplier
+        if (normalizedUserType === 'ADMIN') {
+            return items.filter(item => item.key !== 'supplier');
+        }
+
+        // Default: only orders (fallback for unknown types)
+        return items.filter(item => item.key === 'orders');
     };
 
     const controlItems: NavItem[] = [
@@ -77,6 +99,10 @@ const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }:
         { key: 'expenses', route: '/expenses', icon: <Receipt size={18} />, label: 'Expenses' },
         { key: 'reports', route: '/reports', icon: <FileEarmarkBarGraph size={18} />, label: 'Reports' },
     ];
+
+    // Filter items based on user type
+    const filteredControlItems = filterItemsByUserType(controlItems);
+    const filteredFinanceItems = filterItemsByUserType(financeItems);
 
     const renderNavItems = (items: NavItem[]) => {
         return items.map((item: NavItem) => (
@@ -123,7 +149,7 @@ const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }:
                     </div>
                     <div>
                         <small className="text-muted">{getDisplayName(userName)}</small>
-                        <div className="fw-bold">{formatUserType(currentType)}</div>
+                        <div className="fw-bold">{normalizedUserType}</div>
                     </div>
                 </div>
             </div>
@@ -150,11 +176,19 @@ const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }:
             </Modal>
 
             <Nav className="flex-column p-2">
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2 rounded-heading">Control</div>
-                {renderNavItems(controlItems)}
+                {filteredControlItems.length > 0 && (
+                    <>
+                        <div className="text-uppercase fw-bold text-dark small ms-2 mt-3 mb-2 rounded-heading">Control</div>
+                        {renderNavItems(filteredControlItems)}
+                    </>
+                )}
 
-                <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
-                {renderNavItems(financeItems)}
+                {filteredFinanceItems.length > 0 && (
+                    <>
+                        <div className="text-uppercase fw-bold text-dark small ms-2 mt-4 mb-2">Finance</div>
+                        {renderNavItems(filteredFinanceItems)}
+                    </>
+                )}
             </Nav>
         </div>
     );
