@@ -580,4 +580,16 @@ export const editEmployee = async (id: string, payload: EmployeeEditRequest) => 
     }
 };
 
+export interface DailyEarningsDTO {
+    date: string; // ISO date string (YYYY-MM-DD)
+    totalEarnings: number;
+}
+
+export const getDailyEarnings = async (date: string): Promise<DailyEarningsDTO> => {
+    const resp = await ordersApiClient.get<DailyEarningsDTO>('/daily-earnings', {
+        params: { date }
+    });
+    return resp.data;
+};
+
 export default apiClient;
