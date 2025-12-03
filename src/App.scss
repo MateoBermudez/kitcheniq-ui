@@ -88,6 +88,52 @@ html, body, #root {
 /* Utility hover states */
 .product-chip:hover { background-color: #e6f7ff; }
 
-@media (max-width: 992px) {
-  .create-order-modal .summary-card { margin-top: 1rem; }
+/* Dashboard Quick Access styling (inspired by InventoryStatus) */
+.quick-access-wrapper {
+  background: white;
+}
+.quick-access-card {
+  background: #ffffff; /* card background white */
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px; /* tighter */
+  height: 100%;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.quick-access-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(11,32,70,0.08);
+}
+.quick-access-icon {
+  width: 90px;
+  height: 90px;
+  border-radius: 10px;
+  background: #B1E5FF; /* single unified color, no inner background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.quick-access-icon svg { width: 52px; height: 52px; color: black; }
+.quick-access-label { font-size: 0.78rem; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 8px; }
+
+.dashboard-section-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 6px 18px rgba(11,32,70,0.06);
+}
+
+/* Make notifications list compact */
+.dashboard-notifications .card { margin-bottom: 8px; }
+.dashboard-notifications .small { font-size: 0.78rem; }
+
+/* Daily goal adjustments */
+.daily-goal-figure { font-size: 1.2rem; font-weight: 700; }
+
+/* Larger Dashboard header similar to Inventory */
+.dashboard-header-title {
+  font-size: 1.6rem; /* larger like Inventory headings */
+  font-weight: 800;
 }

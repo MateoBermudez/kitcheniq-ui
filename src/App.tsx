@@ -13,6 +13,9 @@ import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 import { getUserInfo } from './service/api';
 import Staff from "./views/Staff.tsx";
+import DashboardQuickAccess from './components/AdminDashboard/DashboardQuickAccess';
+import HomeDashboard from './components/AdminDashboard/HomeDashboard';
+import UnavailableSection from './components/common/UnavailableSection';
 
 interface User {
     id: string;
@@ -201,20 +204,20 @@ function MainLayout() {
                         </Routes>
                     ) : (
                         <Routes>
-                            <Route path="/" element={<Navigate to="/orders" replace />} />
-                            <Route path="/home" element={<div>Home Page</div>} />
+                            <Route path="/" element={<Navigate to={user?.type === 'ADMIN' ? '/home' : '/orders'} replace />} />
+                            <Route path="/home" element={<HomeDashboard key="home" />} />
                             <Route path="/orders" element={
                                 <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
                             } />
                             <Route path="/inventory" element={<Inventory key="inventory" />} />
                             <Route path="/supplier" element={<Supplier key="supplier" />} />
-                            <Route path="/menu" element={<div key="menu">Menu Page</div>} />
+                            <Route path="/menu" element={<UnavailableSection title="Menu" />} />
                             <Route path="/staff" element={<Staff key="staff" />} />
-                            <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
-                            <Route path="/sales" element={<div key="sales">Sales Page</div>} />
-                            <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
-                            <Route path="/reports" element={<div key="reports">Reports Page</div>} />
-                            <Route path="*" element={<Navigate to="/orders" replace />} />
+                            <Route path="/cash" element={<UnavailableSection title="Cash Register" />} />
+                            <Route path="/sales" element={<UnavailableSection title="Sales" />} />
+                            <Route path="/expenses" element={<UnavailableSection title="Expenses" />} />
+                            <Route path="/reports" element={<UnavailableSection title="Reports" />} />
+                            <Route path="*" element={<Navigate to={user?.type === 'ADMIN' ? '/home' : '/orders'} replace />} />
                         </Routes>
                     )}
                 </div>
@@ -246,7 +249,8 @@ function AppContent() {
     const handleLoginSuccess = (token: string, userData?: { name?: string; type?: string; id?: string }) => {
         login(token, userData);
         const incomingType = (userData?.type || '').toUpperCase();
-        const destination = incomingType === 'SUPPLIER' ? '/supplier' : '/orders';
+        // ADMIN goes to dashboard (/home), SUPPLIER goes to /supplier
+        const destination = incomingType === 'SUPPLIER' ? '/supplier' : incomingType === 'ADMIN' ? '/home' : '/orders';
         // Slight delay to ensure context state committed before navigation
         setTimeout(() => {
             navigate(destination, { replace: true });
@@ -259,11 +263,16 @@ function AppContent() {
         if (!isAuthenticated || isLoading) return;
         const current = location.pathname;
         const supplier = user?.type === 'SUPPLIER';
+        const admin = user?.type === 'ADMIN';
         if (supplier && current !== '/supplier') {
             navigate('/supplier', { replace: true });
             return;
         }
-        if (!supplier) {
+        if (admin && (current === '/' || current === '/login')) {
+            navigate('/home', { replace: true });
+            return;
+        }
+        if (!supplier && !admin) {
             if (current === '/' || current === '/login') {
                 navigate('/orders', { replace: true });
             }

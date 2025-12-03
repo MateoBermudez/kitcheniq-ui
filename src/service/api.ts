@@ -104,7 +104,7 @@ export interface UserInfo {
 }
 
 // Utility to decode a JWT (no signature verification, just base64 decode)
-export const decodeJwt = (token: string): Record<string, any> | null => {
+export const decodeJwt = (token: string): Record<string, unknown> | null => {
     try {
         const parts = token.split('.');
         if (parts.length !== 3) return null;
@@ -114,7 +114,11 @@ export const decodeJwt = (token: string): Record<string, any> | null => {
         const json = decodeURIComponent(atob(payload).split('').map(c => {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-        return JSON.parse(json);
+        const parsed = JSON.parse(json) as unknown;
+        if (parsed && typeof parsed === 'object') {
+            return parsed as Record<string, unknown>;
+        }
+        return null;
     } catch (e) {
         console.warn('decodeJwt failed:', e);
         return null;
