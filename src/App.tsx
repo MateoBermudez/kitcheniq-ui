@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, type ReactNode } from '
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/common/Sidebar';
 import TopNavbar from './components/common/TopNavbar';
+import ProtectedRoute from './components/common/ProtectedRoute';
 import OrderStatus from './components/OrderStatus/OrderStatus';
 import Login from './components/Auth/Login';
 import ToastContainer, {type ToastType} from './components/common/ToastContainer';
@@ -12,6 +13,9 @@ import Inventory from './views/Inventory';
 import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 import { getUserInfo } from './service/api';
+import Staff from "./views/Staff.tsx";
+import HomeDashboard from './components/AdminDashboard/HomeDashboard';
+import UnavailableSection from './components/common/UnavailableSection';
 
 interface User {
     id: string;
@@ -146,7 +150,6 @@ function MainLayout() {
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
-    const isSupplierUser = user?.type === 'SUPPLIER';
 
     // Only derive active section from current path (no redirect logic here to avoid loops)
     useEffect(() => {
@@ -192,29 +195,81 @@ function MainLayout() {
                     userType={user?.type}
                 />
                 <div className="flex-grow-1">
-                    {isSupplierUser ? (
-                        <Routes>
-                            <Route path="/supplier" element={<Supplier key="supplier" />} />
-                            <Route path="*" element={<Navigate to="/supplier" replace />} />
-                        </Routes>
-                    ) : (
-                        <Routes>
-                            <Route path="/" element={<Navigate to="/orders" replace />} />
-                            <Route path="/home" element={<div>Home Page</div>} />
-                            <Route path="/orders" element={
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/orders" replace />} />
+
+                        {/* Home - Solo ADMIN */}
+                        <Route path="/home" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <HomeDashboard key="home" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Orders - ADMIN, EMPLOYEE, CHEF, WAITER */}
+                        <Route path="/orders" element={
+                            <ProtectedRoute allowedRoles={['ADMIN', 'EMPLOYEE', 'CHEF', 'WAITER']} userType={user?.type}>
                                 <OrderStatus key="orders" onToast={(message: string) => showSuccess(message)} />
-                            } />
-                            <Route path="/inventory" element={<Inventory key="inventory" />} />
-                            <Route path="/supplier" element={<Supplier key="supplier" />} />
-                            <Route path="/menu" element={<div key="menu">Menu Page</div>} />
-                            <Route path="/staff" element={<div key="staff">Staff Page</div>} />
-                            <Route path="/cash" element={<div key="cash">Cash Register Page</div>} />
-                            <Route path="/sales" element={<div key="sales">Sales Page</div>} />
-                            <Route path="/expenses" element={<div key="expenses">Expenses Page</div>} />
-                            <Route path="/reports" element={<div key="reports">Reports Page</div>} />
-                            <Route path="*" element={<Navigate to="/orders" replace />} />
-                        </Routes>
-                    )}
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Inventory - Solo ADMIN */}
+                        <Route path="/inventory" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <Inventory key="inventory" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Supplier - Solo SUPPLIER */}
+                        <Route path="/supplier" element={
+                            <ProtectedRoute allowedRoles={['SUPPLIER']} userType={user?.type}>
+                                <Supplier key="supplier" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Menu - Solo ADMIN */}
+                        <Route path="/menu" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <UnavailableSection title="Menu" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Staff - Solo ADMIN */}
+                        <Route path="/staff" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <Staff key="staff" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Cash Register - Solo ADMIN */}
+                        <Route path="/cash" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <UnavailableSection title="Cash Register" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Sales - Solo ADMIN */}
+                        <Route path="/sales" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <UnavailableSection title="Sales" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Expenses - Solo ADMIN */}
+                        <Route path="/expenses" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <UnavailableSection title="Expenses" />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Reports - Solo ADMIN */}
+                        <Route path="/reports" element={
+                            <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
+                                <UnavailableSection title="Reports" />
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="*" element={<Navigate to="/orders" replace />} />
+                    </Routes>
                 </div>
                 <ToastContainer
                     toasts={mappedToasts}
@@ -244,7 +299,8 @@ function AppContent() {
     const handleLoginSuccess = (token: string, userData?: { name?: string; type?: string; id?: string }) => {
         login(token, userData);
         const incomingType = (userData?.type || '').toUpperCase();
-        const destination = incomingType === 'SUPPLIER' ? '/supplier' : '/orders';
+        // ADMIN goes to dashboard (/home), SUPPLIER goes to /supplier
+        const destination = incomingType === 'SUPPLIER' ? '/supplier' : incomingType === 'ADMIN' ? '/home' : '/orders';
         // Slight delay to ensure context state committed before navigation
         setTimeout(() => {
             navigate(destination, { replace: true });
@@ -257,11 +313,16 @@ function AppContent() {
         if (!isAuthenticated || isLoading) return;
         const current = location.pathname;
         const supplier = user?.type === 'SUPPLIER';
+        const admin = user?.type === 'ADMIN';
         if (supplier && current !== '/supplier') {
             navigate('/supplier', { replace: true });
             return;
         }
-        if (!supplier) {
+        if (admin && (current === '/' || current === '/login')) {
+            navigate('/home', { replace: true });
+            return;
+        }
+        if (!supplier && !admin) {
             if (current === '/' || current === '/login') {
                 navigate('/orders', { replace: true });
             }
@@ -296,7 +357,7 @@ function AppContent() {
             <>
                 <Login
                     onLoginSuccess={handleLoginSuccess}
-                    apiBaseUrl="https://kitcheniq-api.onrender.com/kitcheniq/api/v1/auth/login"
+                    apiBaseUrl="http://localhost:5000/kitcheniq/api/v1/auth/login"
                 />
                 <ToastContainer
                     toasts={mappedToasts}

@@ -1,0 +1,321 @@
+import React, { useEffect, useState } from 'react';
+import { Card, Row, Col, Modal, Button, Container } from 'react-bootstrap';
+import { ClipboardData, CartCheck, Box, PeopleFill } from 'react-bootstrap-icons';
+import { useNavigate } from 'react-router-dom';
+import type { AlertItem } from './DashboardNotifications';
+import { getDailyEarnings } from '../../service/api';
+
+const GoalCircle: React.FC<{ progress: number; target: number }> = ({ progress, target }) => {
+    // Calculate percentage and stroke parameters
+    const pct = Math.min(100, Math.round((progress / target) * 100));
+    const radius = 60;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference * (1 - pct / 100);
+
+    return (
+        <svg width={160} height={160} viewBox="0 0 160 160">
+            <g transform="translate(80,80)">
+                <circle r={radius} fill="white" />
+                <circle r={radius} fill="transparent" stroke="#e9ecef" strokeWidth={16} />
+                <circle
+                    r={radius}
+                    fill="transparent"
+                    stroke="#0dcaf0"
+                    strokeWidth={16}
+                    strokeLinecap="round"
+                    strokeDasharray={`${circumference} ${circumference}`}
+                    strokeDashoffset={strokeDashoffset}
+                    transform="rotate(-90)"
+                    // Smooth animation when the dash offset changes (i.e., when target/progress updates)
+                    style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                />
+                {/* Mostrar progreso (ventas del día) en grande y negro */}
+                <text x="0" y="-5" textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="#212529">
+                    ${progress}
+                </text>
+                {/* Mostrar meta (goal) en gris más pequeño */}
+                <text x="0" y="18" textAnchor="middle" dominantBaseline="central" fontSize={12} fill="#6c757d">
+                    /${target}
+                </text>
+            </g>
+        </svg>
+    );
+};
+
+// DashboardQuickAccess Component
+interface QuickAccessProps {
+    alerts: AlertItem[];
+    onCloseAlert: (id: string) => void;
+}
+
+const DashboardQuickAccess: React.FC<QuickAccessProps> = ({ alerts, onCloseAlert }) => {
+    const navigate = useNavigate();
+    const [showDailyModal, setShowDailyModal] = useState(false);
+    const [isEditingGoal, setIsEditingGoal] = useState(false);
+    const [goalInput, setGoalInput] = useState('');
+
+    // Daily sales fetched from backend
+    const [dailySales, setDailySales] = useState<number>(0);
+    const [isLoadingSales, setIsLoadingSales] = useState<boolean>(false);
+    const [now, setNow] = useState<Date>(new Date());
+    const [localAlerts, setLocalAlerts] = useState<AlertItem[]>([]);
+
+    useEffect(() => {
+        const fetchDailySales = async () => {
+            try {
+                setIsLoadingSales(true);
+                // Build ISO date string YYYY-MM-DD for today (local time)
+                const now = new Date();
+                const yyyy = now.getFullYear();
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                const isoDate = `${yyyy}-${mm}-${dd}`;
+                const resp = await getDailyEarnings(isoDate);
+                const total = Number(resp.totalEarnings) || 0;
+                setDailySales(total);
+            } catch {
+                // noop
+            } finally {
+                setIsLoadingSales(false);
+            }
+        };
+        fetchDailySales();
+        const t = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    const handleNavigate = (path: string) => {
+        navigate(path);
+    };
+
+    // Daily goal - configurable via localStorage
+    const storedGoal = localStorage.getItem('dailyGoal');
+    const [dailyTarget, setDailyTarget] = useState(storedGoal ? Number(storedGoal) : 500); // Default: $500
+
+    const handleEditGoal = () => {
+        setGoalInput(String(dailyTarget));
+        setIsEditingGoal(true);
+    };
+
+    const handleSaveGoal = () => {
+        const newGoal = Number(goalInput);
+        if (!isNaN(newGoal) && newGoal > 0) {
+            localStorage.setItem('dailyGoal', String(newGoal));
+            setDailyTarget(newGoal);
+            setIsEditingGoal(false);
+            // Push local notification about goal change
+            const alert: AlertItem = {
+                id: `goal-change-${Date.now()}`,
+                message: `Daily goal updated to $${newGoal}`,
+                timestamp: new Date().toISOString(),
+                severity: 'info'
+            };
+            setLocalAlerts(prev => [alert, ...prev]);
+        }
+    };
+
+    const handleCancelGoal = () => {
+        setIsEditingGoal(false);
+        setGoalInput('');
+    };
+
+    const handleCloseAlert = (id: string) => {
+        // Try to remove from local alerts first
+        const existsLocal = localAlerts.some(a => a.id === id);
+        if (existsLocal) {
+            setLocalAlerts(prev => prev.filter(a => a.id !== id));
+            return;
+        }
+        // Otherwise delegate to parent
+        onCloseAlert(id);
+    };
+
+    return (
+        <div className="d-flex flex-column" style={{ backgroundColor: 'white' }}>
+            <Container fluid className="py-4">
+                <div className="p-3 border rounded-4 shadow mb-4">
+                    {/* Header */}
+                    <div className="mb-4 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 className="mb-1 rounded-heading">DASHBOARD</h2>
+                            <div className="small text-muted">Activity Management</div>
+                        </div>
+                        <div className="text-end" />
+                    </div>
+
+                    {/* Top quick access */}
+                    <Row className="g-3 mb-4">
+                        <Col xs={6} md={3}>
+                            <Card className="border-0 shadow-sm h-100 quick-access-card" style={{ cursor: 'pointer', backgroundColor: '#B1E5FF' }} onClick={() => setShowDailyModal(true)}>
+                                <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div className="quick-access-icon"><ClipboardData /></div>
+                                    <div className="quick-access-label fw-bold">DAILY SUMMARY</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col xs={6} md={3}>
+                            <Card className="border-0 shadow-sm h-100 quick-access-card" style={{ cursor: 'pointer', backgroundColor: '#B1E5FF' }} onClick={() => handleNavigate('/orders')}>
+                                <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div className="quick-access-icon"><CartCheck /></div>
+                                    <div className="quick-access-label fw-bold">ORDER STATUS</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col xs={6} md={3}>
+                            <Card className="border-0 shadow-sm h-100 quick-access-card" style={{ cursor: 'pointer', backgroundColor: '#B1E5FF' }} onClick={() => handleNavigate('/inventory')}>
+                                <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div className="quick-access-icon"><Box /></div>
+                                    <div className="quick-access-label fw-bold">INVENTORY</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col xs={6} md={3}>
+                            <Card className="border-0 shadow-sm h-100 quick-access-card" style={{ cursor: 'pointer', backgroundColor: '#B1E5FF' }} onClick={() => handleNavigate('/staff')}>
+                                <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div className="quick-access-icon"><PeopleFill /></div>
+                                    <div className="quick-access-label fw-bold">STAFF ROTATION</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+
+                    {/* Bottom area: notifications left, goals right */}
+                    <Row className="g-3">
+                        <Col md={6}>
+                            <div className="dashboard-section-card dashboard-notifications h-100" style={{ height: '100%', border: '2px solid #B1E5FF' }}>
+                                <div className="p-3">
+                                    <h6 className="mb-3">Notifications</h6>
+                                    <div className="d-flex" style={{ gap: '16px' }}>
+                                        {/* Left date block */}
+                                        <div className="text-center" style={{ minWidth: '84px' }}>
+                                            <div className="text-uppercase small text-muted" style={{ lineHeight: 1 }}>{now.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                                            <div className="fw-bold" style={{ fontSize: '22px', lineHeight: 1.2 }}>{now.getDate()}</div>
+                                            <div className="small text-muted" style={{ lineHeight: 1 }}>{now.toLocaleDateString('en-US', { month: 'long' })}</div>
+                                        </div>
+                                        {/* Right alert list */}
+                                        <div style={{ maxHeight: 240, overflowY: 'auto' }} className="flex-grow-1 d-flex flex-column gap-2">
+                                            {([...localAlerts, ...alerts]).length === 0 ? (
+                                                <div className="text-muted">No notifications</div>
+                                            ) : (
+                                                ([...localAlerts, ...alerts]).map(a => {
+                                                    const dt = new Date(a.timestamp);
+                                                    const severity = String(a.severity || 'info').toLowerCase();
+                                                    const accent = severity === 'critical' || severity === 'danger' ? '#ea868f'
+                                                      : severity === 'warning' ? '#ffc107'
+                                                      : '#86e5ff';
+                                                    return (
+                                                        <div key={a.id} className="position-relative rounded shadow-sm" style={{ background: '#ffffff', border: '1px solid #e9ecef' }}>
+                                                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: accent, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }} />
+                                                            <div className="p-2 ps-3 pe-4 d-flex align-items-start justify-content-between" style={{ gap: '12px' }}>
+                                                                <div className="flex-grow-1">
+                                                                    <div className="small text-muted" style={{ lineHeight: 1 }}>{dt.toLocaleTimeString()}</div>
+                                                                    <div style={{ lineHeight: 1.4 }}>{a.message}</div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleCloseAlert(a.id)}
+                                                                    aria-label="Close"
+                                                                    className="btn btn-light btn-sm"
+                                                                    style={{ border: '1px solid #dee2e6', lineHeight: 1, padding: '0 8px' }}
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                             )}
+                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Col>
+                        <Col md={6} className="d-flex justify-content-center align-items-stretch">
+                            <div className="dashboard-section-card h-100" style={{ width: '100%', height: '100%', border: '2px solid #B1E5FF' }}>
+                                <Card className="border-0 h-100" style={{ width: '100%', height: '100%' }}>
+                                    <Card.Body className="d-flex flex-column" style={{ width: '100%', height: '100%' }}>
+                                        <div className="d-flex justify-content-between align-items-center mb-3">
+                                            <div className="fw-bold">Daily Goal</div>
+                                            {!isEditingGoal ? (
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    onClick={handleEditGoal}
+                                                    disabled={isLoadingSales}
+                                                >
+                                                    Set Goal
+                                                </Button>
+                                            ) : (
+                                                <div className="d-flex gap-2 align-items-center">
+                                                    <input
+                                                        type="number"
+                                                        className="form-control form-control-sm"
+                                                        style={{ width: 100 }}
+                                                        value={goalInput}
+                                                        onChange={(e) => setGoalInput(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                handleSaveGoal();
+                                                            }
+                                                        }}
+                                                        placeholder="Goal ($)"
+                                                        autoFocus
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={handleSaveGoal}
+                                                        style={{
+                                                            backgroundColor: '#a8e6a3',
+                                                            borderColor: '#a8e6a3',
+                                                            color: '#2d5016',
+                                                            fontWeight: 600
+                                                        }}
+                                                    >
+                                                        Save
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={handleCancelGoal}
+                                                        style={{
+                                                            backgroundColor: '#ffb3b3',
+                                                            borderColor: '#ffb3b3',
+                                                            color: '#8b1a1a',
+                                                            fontWeight: 600
+                                                        }}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                                            <GoalCircle progress={dailySales} target={dailyTarget} />
+                                        </div>
+                                    </Card.Body>
+                                </Card>
+                            </div>
+                        </Col>
+                    </Row>
+                </div>
+            </Container>
+
+            {/* Daily Summary modal */}
+            <Modal show={showDailyModal} onHide={() => setShowDailyModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Daily Summary</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>This section is coming soon</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDailyModal(false)}>Close</Button>
+                </Modal.Footer>
+            </Modal>
+        </div>
+    );
+};
+
+export default DashboardQuickAccess;

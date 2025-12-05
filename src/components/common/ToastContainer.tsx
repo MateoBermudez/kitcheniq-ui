@@ -15,9 +15,14 @@ interface ToastContainerProps {
     toasts: ToastItem[];
     onClose: (id: string | number) => void;
     title: string;
+    // Optional position: any of Bootstrap ToastContainer positions (e.g. 'bottom-start', 'bottom-end')
+    position?:
+        | 'top-start' | 'top-center' | 'top-end'
+        | 'middle-start' | 'middle-center' | 'middle-end'
+        | 'bottom-start' | 'bottom-center' | 'bottom-end';
 }
 
-const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title }) => {
+const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title, position = 'bottom-end' }) => {
     const getToastIcon = (type: ToastType) => {
         switch (type) {
             case 'success':
@@ -64,7 +69,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title 
     };
 
     return (
-        <BSToastContainer position="bottom-end" className="p-3" style={{ zIndex: 9999 }}>
+        <BSToastContainer position={position} className="p-3" style={{ zIndex: 9999 }}>
             {toasts.map((toast) => {
                 const toastStyle = getToastStyle(toast.type);
 
@@ -75,7 +80,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose, title 
                         show={true}
                         delay={5000}
                         autohide
-                        className="border-0 shadow-sm"
+                        className="border-0 shadow-sm mb-2"
                     >
                         <Toast.Header style={toastStyle.header}>
                             {getToastIcon(toast.type)}
