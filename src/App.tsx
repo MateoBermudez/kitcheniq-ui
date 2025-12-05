@@ -14,6 +14,8 @@ import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 import { getUserInfo } from './service/api';
 import Staff from "./views/Staff.tsx";
+import HomeDashboard from './components/AdminDashboard/HomeDashboard';
+import UnavailableSection from './components/common/UnavailableSection';
 
 interface User {
     id: string;
@@ -148,6 +150,7 @@ function MainLayout() {
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
+
     // Only derive active section from current path (no redirect logic here to avoid loops)
     useEffect(() => {
         const path = location.pathname;
@@ -198,7 +201,7 @@ function MainLayout() {
                         {/* Home - Solo ADMIN */}
                         <Route path="/home" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div>Home Page</div>
+                                <HomeDashboard key="home" />
                             </ProtectedRoute>
                         } />
 
@@ -226,7 +229,7 @@ function MainLayout() {
                         {/* Menu - Solo ADMIN */}
                         <Route path="/menu" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div key="menu">Menu Page</div>
+                                <UnavailableSection title="Menu" />
                             </ProtectedRoute>
                         } />
 
@@ -240,28 +243,28 @@ function MainLayout() {
                         {/* Cash Register - Solo ADMIN */}
                         <Route path="/cash" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div key="cash">Cash Register Page</div>
+                                <UnavailableSection title="Cash Register" />
                             </ProtectedRoute>
                         } />
 
                         {/* Sales - Solo ADMIN */}
                         <Route path="/sales" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div key="sales">Sales Page</div>
+                                <UnavailableSection title="Sales" />
                             </ProtectedRoute>
                         } />
 
                         {/* Expenses - Solo ADMIN */}
                         <Route path="/expenses" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div key="expenses">Expenses Page</div>
+                                <UnavailableSection title="Expenses" />
                             </ProtectedRoute>
                         } />
 
                         {/* Reports - Solo ADMIN */}
                         <Route path="/reports" element={
                             <ProtectedRoute allowedRoles={['ADMIN']} userType={user?.type}>
-                                <div key="reports">Reports Page</div>
+                                <UnavailableSection title="Reports" />
                             </ProtectedRoute>
                         } />
 
@@ -296,7 +299,8 @@ function AppContent() {
     const handleLoginSuccess = (token: string, userData?: { name?: string; type?: string; id?: string }) => {
         login(token, userData);
         const incomingType = (userData?.type || '').toUpperCase();
-        const destination = incomingType === 'SUPPLIER' ? '/supplier' : '/orders';
+        // ADMIN goes to dashboard (/home), SUPPLIER goes to /supplier
+        const destination = incomingType === 'SUPPLIER' ? '/supplier' : incomingType === 'ADMIN' ? '/home' : '/orders';
         // Slight delay to ensure context state committed before navigation
         setTimeout(() => {
             navigate(destination, { replace: true });
@@ -309,11 +313,16 @@ function AppContent() {
         if (!isAuthenticated || isLoading) return;
         const current = location.pathname;
         const supplier = user?.type === 'SUPPLIER';
+        const admin = user?.type === 'ADMIN';
         if (supplier && current !== '/supplier') {
             navigate('/supplier', { replace: true });
             return;
         }
-        if (!supplier) {
+        if (admin && (current === '/' || current === '/login')) {
+            navigate('/home', { replace: true });
+            return;
+        }
+        if (!supplier && !admin) {
             if (current === '/' || current === '/login') {
                 navigate('/orders', { replace: true });
             }

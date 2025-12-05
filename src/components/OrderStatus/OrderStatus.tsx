@@ -39,6 +39,12 @@ const comboComponents: Record<number, { productId: number; quantity: number }[]>
     6: [ { productId: 1, quantity: 2 }, { productId: 2, quantity: 2 }, { productId: 3, quantity: 2 } ]
 };
 
+declare global {
+    interface Window {
+        updateOrderTable?: (newOrder: { data?: { id?: number | string }, requestTime?: string, tableNumber?: string | number }) => void;
+    }
+}
+
 const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
     const [searchTerm] = useState('');
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -143,14 +149,30 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 const data = resp.data || {};
                 const orderId = data.id;
                 if (orderId != null) {
+                    // Persist notes locally so specialized search can display them
+                    try {
+                        const raw = localStorage.getItem('order_notes');
+                        const notesMap = raw ? JSON.parse(raw) as Record<string,string> : {};
+                        if (newOrder.notes && newOrder.notes.trim()) {
+                            notesMap[String(orderId)] = newOrder.notes.trim();
+                            localStorage.setItem('order_notes', JSON.stringify(notesMap));
+                        }
+                    } catch (err) {
+                        // If parsing/storage fails, log to console (non-fatal)
+                        console.warn('Could not persist order note locally', err);
+                    }
                     window.updateOrderTable?.({ data: { id: orderId }, requestTime: localTime, tableNumber: newOrder.tableNumber });
-                    try { window.dispatchEvent(new CustomEvent('order-created', { detail: { id: orderId, code: `ORD-${orderId}`, table: newOrder.tableNumber, timestamp: Date.now() } })); } catch {}
+                    try {
+                        window.dispatchEvent(new CustomEvent('order-created', { detail: { id: orderId, code: `ORD-${orderId}`, table: newOrder.tableNumber, timestamp: Date.now() } }));
+                    } catch (err) {
+                        console.warn('Could not dispatch order-created event', err);
+                    }
                 }
                 onToast(`Order #${data.id} created at ${localTime} for a total of $${data.price}`, 'success');
                 setNewOrder({ tableNumber: '', selectedItems: [], notes: '' });
             })
-            .catch(err => {
-                const msg = (err as any)?.response?.data?.message || (err as Error).message || 'Could not create order';
+            .catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : 'Could not create order';
                 onToast(msg, 'error');
             })
             .finally(() => setShowCreateModal(false));
@@ -175,8 +197,8 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                     <OrderTable searchTerm={searchTerm} onToast={onToast} />
                 </div>
                 <Row>
-                    <Col md={6}><div className="p-3 border rounded-4 shadow h-100"><OrderSearch onSearch={() => {}} /></div></Col>
-                    <Col md={6}><div className="p-3 border rounded-4 shadow h-100"><OrderNotifications /></div></Col>
+                    <Col md={6}><div className="p-3 border rounded-4 shadow h-100" style={{ minHeight: 0 }}><OrderSearch onSearch={() => {}} /></div></Col>
+                    <Col md={6}><div className="p-3 border rounded-4 shadow h-100" style={{ minHeight: 0 }}><OrderNotifications /></div></Col>
                 </Row>
             </Container>
 

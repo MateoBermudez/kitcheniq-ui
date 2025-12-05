@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Alert } from 'react-bootstrap';
 import { getAllSupplierItems } from '../../service/api';
 import type { SupplierOrder } from './SupplierStatus';
@@ -7,7 +7,6 @@ export type NotificationType = 'success' | 'warning' | 'danger' | 'info';
 
 export interface SupplierNotificationsProps {
     items: SupplierOrder[];
-    onToast: (msg: string, type?: NotificationType) => void;
 }
 
 interface Notification {
@@ -16,18 +15,17 @@ interface Notification {
     type: NotificationType;
 }
 
-const SupplierNotifications: React.FC<SupplierNotificationsProps> = ({ items, onToast }) => {
+const SupplierNotifications: React.FC<SupplierNotificationsProps> = ({ items }) => {
     const lastOrderStateRef = useRef<Record<number, SupplierOrder>>({});
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
-    // Helper function to add a notification
-    const addNotification = (msg: string, type: NotificationType) => {
+    // Helper function to add a notification (memoized to keep stable reference)
+    const addNotification = useCallback((msg: string, type: NotificationType) => {
         setNotifications(prev => [
             ...prev,
             { id: Date.now().toString() + Math.random(), msg, type }
         ]);
-        if (onToast) onToast(msg, type);
-    };
+    }, []);
 
     // Function to remove a notification by id
     const removeNotification = (id: string) => {
@@ -51,7 +49,7 @@ const SupplierNotifications: React.FC<SupplierNotificationsProps> = ({ items, on
                 lastOrderStateRef.current[order.orderId] = { ...order };
             });
         }
-    }, [items]);
+    }, [items, addNotification]);
 
     useEffect(() => {
         const checkOrderStatus = async () => {
@@ -115,18 +113,21 @@ const SupplierNotifications: React.FC<SupplierNotificationsProps> = ({ items, on
         checkOrderStatus().then(() => {});
         const interval = setInterval(checkOrderStatus, 60000); // every 1 minute
         return () => clearInterval(interval);
-    }, []);
+    }, [addNotification]);
 
     return (
         <div>
             {notifications.length === 0 ? (
                 <div className="text-muted text-center">No order notifications.</div>
             ) : (
-                notifications.map(n => (
-                    <Alert key={n.id} variant={n.type} dismissible onClose={() => removeNotification(n.id)}>
-                        {n.msg}
-                    </Alert>
-                ))
+                // show up to 3 visible alerts; enable scroll when there are more
+                <div style={{ maxHeight: notifications.length > 3 ? 240 : 'auto', overflowY: notifications.length > 3 ? 'auto' : 'visible' }} className="d-flex flex-column gap-2">
+                    {notifications.map(n => (
+                        <Alert key={n.id} variant={n.type} dismissible onClose={() => removeNotification(n.id)}>
+                            {n.msg}
+                        </Alert>
+                    ))}
+                </div>
             )}
         </div>
     );

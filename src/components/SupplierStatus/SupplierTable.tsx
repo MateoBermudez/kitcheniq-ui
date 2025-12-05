@@ -224,98 +224,101 @@ const SupplierTable: React.FC<SupplierTableProps> = ({ searchTerm, onToast, item
 
     return (
         <div>
-            <Table striped bordered hover responsive className="mt-2">
-                <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th>Request Day</th>
-                    <th>Total Amount</th>
-                    <th>Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {filteredItems.length === 0 ? (
+            {/* Limit visible rows to ~10; enable scrolling when there are more. */}
+            <div style={{ maxHeight: filteredItems.length > 10 ? 560 : 'auto', overflowY: filteredItems.length > 10 ? 'auto' : 'visible' }}>
+                <Table striped bordered hover responsive className="mt-2">
+                    <thead>
                     <tr>
-                        <td colSpan={5} className="text-center text-muted">No supplier orders found.</td>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Request Day</th>
+                        <th>Total Amount</th>
+                        <th>Actions</th>
                     </tr>
-                ) : (
-                    filteredItems.map(item => (
-                        <tr key={item.orderId}>
-                            <td>{item.orderId}</td>
-                            <td>{item.status}</td>
-                            <td>{item.orderDate}</td>
-                            <td>{item.totalAmount}</td>
-                            <td>
-                                {item.status !== 'CANCELLED' ? (
-                                    <Dropdown>
-                                        <Dropdown.Toggle
-                                            variant="outline-secondary"
-                                            size="sm"
-                                            disabled={dispatchingOrder === item.orderId}
-                                        >
-                                            {dispatchingOrder === item.orderId ?
-                                                <HourglassSplit size={16} /> :
-                                                <ThreeDots size={16} />}
-                                        </Dropdown.Toggle>
-                                        <Dropdown.Menu
-                                            className="dropdown-menu-super"
-                                            popperConfig={{ strategy: 'fixed' }}
-                                        >
-                                            {item.orderId !== null && (
-                                                <>
-                                                    {/* If the order is DELIVERED, only show PDF option */}
-                                                    {item.status === 'DELIVERED' ? (
-                                                        <Dropdown.Item
-                                                            onClick={() => handleSeeOrderReport(item.orderId!)}
-                                                        >
-                                                            <FileText size={16} className="me-2" /> See Order Report
-                                                        </Dropdown.Item>
-                                                    ) : (
-                                                        <>
-                                                            {/* Show Review only if NOT ACCEPTED and NOT DELIVERED */}
-                                                            {item.status !== 'ACCEPTED' && item.status !== 'DELIVERED' && (
-                                                                <Dropdown.Item
-                                                                    onClick={() => openPreviewModal(item)}
-                                                                    disabled={dispatchingOrder?.orderId === item.orderId}
-                                                                >
-                                                                    <Check2Circle size={16} className="me-2" /> Review Order
-                                                                </Dropdown.Item>
-                                                            )}
-                                                            <Dropdown.Item
-                                                                onClick={() => openDispatchModal(item)}
-                                                                disabled={dispatchingOrder?.orderId === item.orderId || item.status !== 'ACCEPTED'}
-                                                            >
-                                                                <Truck size={16} className="me-2" /> Dispatch Order
-                                                            </Dropdown.Item>
+                    </thead>
+                    <tbody>
+                    {filteredItems.length === 0 ? (
+                        <tr>
+                            <td colSpan={5} className="text-center text-muted">No supplier orders found.</td>
+                        </tr>
+                    ) : (
+                        filteredItems.map(item => (
+                            <tr key={item.orderId}>
+                                <td>{item.orderId}</td>
+                                <td>{item.status}</td>
+                                <td>{item.orderDate}</td>
+                                <td>{item.totalAmount}</td>
+                                <td>
+                                    {item.status !== 'CANCELLED' ? (
+                                        <Dropdown>
+                                            <Dropdown.Toggle
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                disabled={dispatchingOrder === item.orderId}
+                                            >
+                                                {dispatchingOrder === item.orderId ?
+                                                    <HourglassSplit size={16} /> :
+                                                    <ThreeDots size={16} />}
+                                            </Dropdown.Toggle>
+                                            <Dropdown.Menu
+                                                className="dropdown-menu-super"
+                                                popperConfig={{ strategy: 'fixed' }}
+                                            >
+                                                {item.orderId !== null && (
+                                                    <>
+                                                        {/* If the order is DELIVERED, only show PDF option */}
+                                                        {item.status === 'DELIVERED' ? (
                                                             <Dropdown.Item
                                                                 onClick={() => handleSeeOrderReport(item.orderId!)}
                                                             >
                                                                 <FileText size={16} className="me-2" /> See Order Report
                                                             </Dropdown.Item>
-                                                            <Dropdown.Divider />
-                                                            <Dropdown.Item
-                                                                onClick={() => openCancelModal(item)}
-                                                                className="text-danger"
-                                                                disabled={item.status === 'Cancelled'}
-                                                            >
-                                                                <XCircle size={16} className="me-2" /> Cancel Order
-                                                            </Dropdown.Item>
-                                                        </>
-                                                    )}
-                                                </>
-                                            )}
-                                        </Dropdown.Menu>
-                                    </Dropdown>
-                                ) : (
-                                    <span className="text-muted">No actions available</span>
-                                )}
-                            </td>
-                        </tr>
-                    ))
-                )}
-                </tbody>
-            </Table>
+                                                        ) : (
+                                                            <>
+                                                                {/* Show Review only if NOT ACCEPTED and NOT DELIVERED */}
+                                                                {item.status !== 'ACCEPTED' && item.status !== 'DELIVERED' && (
+                                                                    <Dropdown.Item
+                                                                        onClick={() => openPreviewModal(item)}
+                                                                        disabled={dispatchingOrder?.orderId === item.orderId}
+                                                                    >
+                                                                        <Check2Circle size={16} className="me-2" /> Review Order
+                                                                    </Dropdown.Item>
+                                                                )}
+                                                                <Dropdown.Item
+                                                                    onClick={() => openDispatchModal(item)}
+                                                                    disabled={dispatchingOrder?.orderId === item.orderId || item.status !== 'ACCEPTED'}
+                                                                >
+                                                                    <Truck size={16} className="me-2" /> Dispatch Order
+                                                                </Dropdown.Item>
+                                                                <Dropdown.Item
+                                                                    onClick={() => handleSeeOrderReport(item.orderId!)}
+                                                                >
+                                                                    <FileText size={16} className="me-2" /> See Order Report
+                                                                </Dropdown.Item>
+                                                                <Dropdown.Divider />
+                                                                <Dropdown.Item
+                                                                    onClick={() => openCancelModal(item)}
+                                                                    className="text-danger"
+                                                                    disabled={item.status === 'Cancelled'}
+                                                                >
+                                                                    <XCircle size={16} className="me-2" /> Cancel Order
+                                                                </Dropdown.Item>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </Dropdown.Menu>
+                                        </Dropdown>
+                                    ) : (
+                                        <span className="text-muted">No actions available</span>
+                                    )}
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                    </tbody>
+                </Table>
+            </div>
 
             <Modal show={showDispatchModal} centered>
                 <Modal.Header>

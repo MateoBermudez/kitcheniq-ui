@@ -24,16 +24,6 @@ interface LastOrderState {
     };
 }
 
-interface Order {
-    id: number;
-    details: string;
-    price: number;
-    bill: string;
-    status: string;
-    orderDate: string;
-    items: string[];
-}
-
 const DEFAULT_PENDING_WARNING_MIN = 15;
 const DEFAULT_PENDING_URGENT_MIN = 30;
 const DEFAULT_READY_WARNING_MIN = 15;
@@ -104,7 +94,7 @@ const OrderNotifications: React.FC = () => {
         [notifications]
     );
 
-    const extractTableNumber = (order: Order): string | number | null => {
+    const extractTableNumber = (order: OrderData): string | number | null => {
         if (order.details && order.details.includes('Table')) {
             const match = order.details.match(/Table\s+(\d+)/i);
             return match ? match[1] : null;
@@ -127,7 +117,7 @@ const OrderNotifications: React.FC = () => {
              const ordersByTable: { [key: string]: number } = {};
 
             orders.forEach(order => {
-                const orderId = (order.id ?? null) || (order as any).code;
+                const orderId = (order.id ?? null) || order.code;
                  if (!orderId) return;
 
                  const orderStatus = (order.status || '').toUpperCase();
@@ -141,7 +131,7 @@ const OrderNotifications: React.FC = () => {
                     deliveredCount++;
                  }
 
-                 const tableNumber = order.tableNumber || extractTableNumber(order as any);
+                 const tableNumber = order.tableNumber || extractTableNumber(order);
                  if (tableNumber && orderStatus !== 'DELIVERED') {
                      ordersByTable[tableNumber] = (ordersByTable[tableNumber] || 0) + 1;
                  }

@@ -43,7 +43,7 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const refreshOrders = async () => {
+    const refreshOrders = React.useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -61,14 +61,23 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
                 return;
             }
             const response = await getAllSupplierItems(String(candidateId));
-            const data = (response as any).data ?? response;
+            let data: unknown = response;
+            // Axios response guard without casting to Record directly
+            const hasData = (val: unknown): val is { data?: unknown } => {
+                return typeof val === 'object' && val !== null && 'data' in (val as Record<string, unknown>);
+            };
+            if (hasData(response)) {
+                data = response.data ?? response;
+            }
             let orders: SupplierOrder[] = [];
             if (Array.isArray(data)) {
                 orders = data;
-            } else if (data.data && Array.isArray(data.data)) {
-                orders = data.data;
-            } else if (data.items && Array.isArray(data.items)) {
-                orders = data.items;
+            } else if (typeof data === 'object' && data !== null && 'data' in (data as Record<string, unknown>)) {
+                const obj = data as { data?: unknown };
+                if (Array.isArray(obj.data)) orders = obj.data as SupplierOrder[];
+            } else if (typeof data === 'object' && data !== null && 'items' in (data as Record<string, unknown>)) {
+                const obj = data as { items?: unknown };
+                if (Array.isArray(obj.items)) orders = obj.items as SupplierOrder[];
             }
             setSupplierOrders(orders);
         } catch (err) {
@@ -77,11 +86,11 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onToast]);
 
     useEffect(() => {
         refreshOrders();
-    }, []);
+    }, [refreshOrders]);
 
     return (
         <div className="d-flex flex-column" style={{backgroundColor: 'white'}}>
@@ -117,7 +126,7 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
                     </Col>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            <SupplierNotifications items={supplierOrders} onToast={onToast} />
+                            <SupplierNotifications items={supplierOrders} />
                         </div>
                     </Col>
                 </Row>

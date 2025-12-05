@@ -104,7 +104,7 @@ export interface UserInfo {
 }
 
 // Utility to decode a JWT (no signature verification, just base64 decode)
-export const decodeJwt = (token: string): Record<string, any> | null => {
+export const decodeJwt = (token: string): Record<string, unknown> | null => {
     try {
         const parts = token.split('.');
         if (parts.length !== 3) return null;
@@ -114,7 +114,11 @@ export const decodeJwt = (token: string): Record<string, any> | null => {
         const json = decodeURIComponent(atob(payload).split('').map(c => {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-        return JSON.parse(json);
+        const parsed = JSON.parse(json) as unknown;
+        if (parsed && typeof parsed === 'object') {
+            return parsed as Record<string, unknown>;
+        }
+        return null;
     } catch (e) {
         console.warn('decodeJwt failed:', e);
         return null;
@@ -197,27 +201,15 @@ ordersApiClient.interceptors.response.use(
 // ==================== AUTH OPERATIONS ====================
 
 export const login = async (credentials: LoginRequest): Promise<AuthResponse> => {
-    try {
-        const response = await ordersApiClient.post<AuthResponse>('/auth/login', credentials);
-        if (response.data.token) {
-            setAuthToken(response.data.token);
-        }
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.post<AuthResponse>('/auth/login', credentials);
+    if (response.data.token) setAuthToken(response.data.token);
+    return response.data;
 };
 
 export const register = async (userData: RegisterRequest): Promise<AuthResponse> => {
-    try {
-        const response = await ordersApiClient.post<AuthResponse>('/auth/register', userData);
-        if (response.data.token) {
-            setAuthToken(response.data.token);
-        }
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.post<AuthResponse>('/auth/register', userData);
+    if (response.data.token) setAuthToken(response.data.token);
+    return response.data;
 };
 
 export const logout = () => {
@@ -364,53 +356,31 @@ export const createOrder = async (orderData: OrderData) => {
 };
 
 export const getOrderById = async (id: number) => {
-    try {
-        const response = await ordersApiClient.get<OrderResponseDTO>(`/order/${id}`);
-        const raw = response.data;
-        return { data: { ...raw, id: raw.orderId, price: raw.totalPrice, details: raw.orderBill } };
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.get<OrderResponseDTO>(`/order/${id}`);
+    const raw = response.data;
+    return { data: { ...raw, id: raw.orderId, price: raw.totalPrice, details: raw.orderBill } };
 };
 
 export const getAllOrders = async () => {
-    try {
-        const response = await ordersApiClient.get<OrderResponseDTO[]>('/orders');
-        const adapted = response.data.map(o => mapBackendToFrontend(o));
-        return { data: adapted };
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.get<OrderResponseDTO[]>('/orders');
+    const adapted = response.data.map(o => mapBackendToFrontend(o));
+    return { data: adapted };
 };
 
 export const updateOrder = async (id: number, orderData: string) => {
-    try {
-        const response = await ordersApiClient.put<OrderResponseDTO>(`/order/${id}`, {
-            orderBill: orderData
-        });
-        return { data: mapBackendToFrontend(response.data) };
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.put<OrderResponseDTO>(`/order/${id}`, { orderBill: orderData });
+    return { data: mapBackendToFrontend(response.data) };
 };
 
 export const deleteOrder = async (id: number) => {
-    try {
-        const response = await ordersApiClient.delete<OrderResponseDTO>(`/order/${id}`);
-        return { data: mapBackendToFrontend(response.data) };
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.delete<OrderResponseDTO>(`/order/${id}`);
+    return { data: mapBackendToFrontend(response.data) };
 };
 
 export const getOrdersByStatus = async (status: string) => {
-    try {
-        const response = await ordersApiClient.get<OrderResponseDTO[]>(`/orders/status/${status}`);
-        const adapted = response.data.map(o => mapBackendToFrontend(o));
-        return { data: adapted };
-    } catch (error) {
-        throw error;
-    }
+    const response = await ordersApiClient.get<OrderResponseDTO[]>(`/orders/status/${status}`);
+    const adapted = response.data.map(o => mapBackendToFrontend(o));
+    return { data: adapted };
 };
 
 export const updateOrderStatus = async (id: number, status: string) => {
@@ -430,17 +400,11 @@ export const updateOrderStatus = async (id: number, status: string) => {
         const upper = status.toUpperCase();
         if (fallbackMap[upper]) {
             const fb = fallbackMap[upper];
-            try {
-                const payloadFb = { status: fb, orderStatus: fb };
-                const resp2 = await ordersApiClient.put<OrderResponseDTO>(
-                    `/order/${id}/status`,
-                    payloadFb,
-                    { params: { status: fb } }
-                );
-                return { data: mapBackendToFrontend(resp2.data) };
-            } catch (err2) {
-                throw err2;
-            }
+            const payloadFb = { status: fb, orderStatus: fb };
+            return ordersApiClient
+                .put<OrderResponseDTO>(`/order/${id}/status`, payloadFb, { params: { status: fb } })
+                .then(resp2 => ({ data: mapBackendToFrontend(resp2.data) }))
+                .catch(err2 => { throw err2; });
         }
         throw error;
     }
@@ -514,5 +478,92 @@ export const finishSupplierDispatch = (orderId: number) => {
 export const initiateDispatch = (orderId: number) => {
     return apiClient.post(`/kitcheniq/api/v1/suppliers/initiate-dispatch`, null, { params: { orderId } });
 }
+
+// ==================== EMPLOYEES (ADMIN) ====================
+export type EmployeeTypeCode = 'ADMIN' | 'CHEF' | 'WAITER';
+
+export interface EmployeeCreateRequest {
+    id: string;             // employee ID
+    password: string;       // initial password
+    name: string;           // first name(s)
+    lastName: string;       // last name(s)
+    type: EmployeeTypeCode; // ADMIN | CHEF | WAITER
+    hourlyRate: number;
+}
+
+export interface EmployeeEditRequest {
+    name: string;
+    lastName: string;
+    employeeType: EmployeeTypeCode; // ADMIN | CHEF | WAITER
+    hourlyRate: number;
+}
+
+export const createEmployee = async (payload: EmployeeCreateRequest) => {
+    const backendPayload = {
+        // IDs
+        id: payload.id,
+        employeeId: payload.id,
+        // Credentials & names
+        password: payload.password,
+        name: payload.name,
+        lastName: payload.lastName,
+        // Role (both keys for compatibility)
+        type: payload.type,
+        employeeType: payload.type,
+        // Compensation
+        hourlyRate: payload.hourlyRate
+    } as const;
+    return ordersApiClient
+        .post('/admin/register-employee', backendPayload)
+        .then(resp => resp.data)
+        .catch(error => {
+            if (axios.isAxiosError(error)) {
+                const data = error.response?.data as unknown;
+                let msg = error.message;
+                if (typeof data === 'string') {
+                    msg = data;
+                } else if (data && typeof data === 'object') {
+                    const rec = data as Record<string, unknown>;
+                    const m = rec['message'];
+                    if (typeof m === 'string') msg = m;
+                }
+                throw new Error(msg);
+            }
+            throw error as Error;
+        });
+};
+
+export const editEmployee = async (id: string, payload: EmployeeEditRequest) => {
+    return ordersApiClient
+        .put(`/admin/edit-employee/${id}`, payload)
+        .then(resp => resp.data)
+        .catch(error => {
+            if (axios.isAxiosError(error)) {
+                const data = error.response?.data as unknown;
+                let msg = error.message;
+                if (typeof data === 'string') {
+                    msg = data;
+                } else if (data && typeof data === 'object') {
+                    const rec = data as Record<string, unknown>;
+                    const m = rec['message'];
+                    if (typeof m === 'string') msg = m;
+                }
+                throw new Error(msg);
+            }
+            throw error as Error;
+        });
+};
+
+export interface DailyEarningsDTO {
+    date: string; // ISO date string (YYYY-MM-DD)
+    totalEarnings: number;
+}
+
+export const getDailyEarnings = async (date: string): Promise<DailyEarningsDTO> => {
+    const resp = await ordersApiClient.get<DailyEarningsDTO>('/daily-earnings', {
+        params: { date }
+    });
+    return resp.data;
+};
 
 export default apiClient;
