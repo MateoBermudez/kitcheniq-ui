@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Form, Button, InputGroup, Row, Col, Card, Spinner, Alert } from 'react-bootstrap';
 import { Search, BoxSeam, Hash, Building } from 'react-bootstrap-icons';
 import { searchInventoryItems } from '../../service/api';
@@ -21,11 +21,13 @@ interface InventorySearchProps {
     onSearch?: (results: InventoryItem[]) => void;
 }
 
-// Available suppliers (can be extended or fetched from backend)
-const AVAILABLE_SUPPLIERS = [
-    { id: '', name: 'All Suppliers' },
-    { id: 'SUP001', name: 'SUP001' }
-];
+// Supplier list endpoint (same as InventoryStatus)
+const SUPPLIER_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/supplier-list';
+
+interface SupplierOption {
+    id: string;
+    name: string;
+}
 
 const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
     const [searchForm, setSearchForm] = useState<{ name: string; supplierId: string; itemId: string }>({
@@ -37,6 +39,9 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
     const [hasSearched, setHasSearched] = useState<boolean>(false);
+    const [suppliers, setSuppliers] = useState<SupplierOption[]>([{ id: '', name: 'All Suppliers' }]);
+    const [loadingSuppliers, setLoadingSuppliers] = useState<boolean>(false);
+    const [suppliersError, setSuppliersError] = useState<string>('');
 
     const handleInputChange = (field: string, value: string) => {
         setSearchForm(prev => ({
@@ -110,6 +115,56 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
         }
     }, [searchForm, onSearch, mapBackendToInventoryItem]);
 
+    // Fetch suppliers on mount
+    useEffect(() => {
+        let mounted = true;
+        const load = async () => {
+            setLoadingSuppliers(true);
+            setSuppliersError('');
+            try {
+                const token = localStorage.getItem('authToken');
+                const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+                if (token) headers.Authorization = `Bearer ${token}`;
+                const resp = await fetch(SUPPLIER_LIST_ENDPOINT, { headers });
+                if (!mounted) return;
+                if (!resp.ok) {
+                    setSuppliers([{ id: '', name: 'All Suppliers' }]);
+                    setSuppliersError(`Could not load suppliers (${resp.status})`);
+                    return;
+                }
+                const data = await resp.json().catch(() => null);
+                // normalize possible payload shapes: array or { data: [...] }
+                let arr: unknown[] = [];
+                if (Array.isArray(data)) arr = data;
+                else if (data && typeof data === 'object') {
+                    const obj = data as Record<string, unknown>;
+                    if (Array.isArray(obj.data)) arr = obj.data as unknown[];
+                }
+
+                const opts = [{ id: '', name: 'All Suppliers' }].concat(
+                    arr.map((s, idx) => {
+                        if (s && typeof s === 'object') {
+                            const so = s as Record<string, unknown>;
+                            const idVal = so['id'] ?? so['supplierId'];
+                            const nameVal = so['name'] ?? so['supplierName'] ?? idVal;
+                            return { id: String(idVal ?? `SUP${idx+1}`), name: String(nameVal ?? `Supplier ${idx+1}`) };
+                        }
+                        return { id: `SUP${idx+1}`, name: `Supplier ${idx+1}` };
+                    })
+                );
+                setSuppliers(opts);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : 'Error loading suppliers';
+                setSuppliersError(msg);
+                setSuppliers([{ id: '', name: 'All Suppliers' }]);
+            } finally {
+                if (mounted) setLoadingSuppliers(false);
+            }
+        };
+        load();
+        return () => { mounted = false; };
+    }, []);
+
     const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         (async () => {
@@ -180,12 +235,13 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                                 onChange={(e) => handleInputChange('supplierId', e.target.value)}
                                 style={{borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
                             >
-                                {AVAILABLE_SUPPLIERS.map(supplier => (
+                                {suppliers.map(supplier => (
                                     <option key={supplier.id} value={supplier.id}>
                                         {supplier.name}
                                     </option>
                                 ))}
                             </Form.Select>
+                            {loadingSuppliers && <Spinner animation="border" size="sm" className="ms-2" />}
                         </InputGroup>
                     </Col>
                     <Col lg={2} md={6} sm={12}>
@@ -217,7 +273,13 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                 </Alert>
             )}
 
-            <div className="flex-grow-1 overflow-auto">
+            {suppliersError && (
+                <Alert variant="warning" className="mb-3">
+                    {suppliersError}
+                </Alert>
+            )}
+
+            <div className="flex-grow-1 overflow-auto" style={{ minHeight: 0 }}>
                 {hasSearched && (
                     <div className="mb-2 d-flex flex-wrap justify-content-between align-items-center">
                         <h6 className="text-muted mb-2 mb-sm-0">
@@ -226,83 +288,77 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                     </div>
                 )}
 
-                {searchResults.length > 0 && (
-                    <div className="d-flex flex-column gap-2">
-                        {searchResults.map((item) => {
-                            // Determine color based on absolute quantity ranges
-                            const quantity = item.stockQuantity;
-                            let quantityColor = '#28a745'; // Green by default
-                            let borderColor = '#A3C6B0';
+                {searchResults.length > 0 ? (
+                    // limit visible height to show up to 3 cards; enable scrolling if more
+                    <div style={{ maxHeight: 360, overflowY: searchResults.length > 3 ? 'auto' : 'visible' }}>
+                        <div className="d-flex flex-column gap-2">
+                            {searchResults.map((item) => {
+                                // Determine color based on absolute quantity ranges
+                                const quantity = item.stockQuantity;
+                                let quantityColor = '#28a745'; // Green by default
+                                let borderColor = '#A3C6B0';
 
-                            if (quantity === 0) {
-                                quantityColor = '#dc3545'; // Red
-                                borderColor = '#EA868F';
-                            } else if (quantity < 10) {
-                                quantityColor = '#ffc107'; // Yellow/Orange
-                                borderColor = '#DEB887';
-                            } else if (quantity < 30) {
-                                quantityColor = '#17a2b8'; // Cyan
-                                borderColor = '#86e5ff';
-                            }
+                                if (quantity === 0) {
+                                    quantityColor = '#dc3545'; // Red
+                                    borderColor = '#EA868F';
+                                } else if (quantity < 10) {
+                                    quantityColor = '#ffc107'; // Yellow/Orange
+                                    borderColor = '#DEB887';
+                                } else if (quantity < 30) {
+                                    quantityColor = '#17a2b8'; // Cyan
+                                    borderColor = '#86e5ff';
+                                }
 
-                            return (
-                                <Card
-                                    key={item.id ?? item.name}
-                                    className="border-0 shadow-sm position-relative"
-                                    style={{
-                                        borderLeft: `4px solid ${borderColor}`,
-                                        background: '#ffffff'
-                                    }}
-                                >
-                                    <Card.Body className="p-3">
-                                        <div className="d-flex justify-content-between align-items-start mb-2">
-                                            <div className="d-flex align-items-center flex-wrap gap-2">
-                                                <h6 className="mb-0">
-                                                    {item.name}
-                                                </h6>
-                                                <span className="badge bg-light text-dark border">
-                                                    ID: {item.id}
-                                                </span>
+                                return (
+                                    <Card
+                                        key={String(item.id ?? item.name)}
+                                        className="border-0 shadow-sm position-relative"
+                                        style={{
+                                            borderLeft: `4px solid ${borderColor}`,
+                                            background: '#ffffff'
+                                        }}
+                                    >
+                                        <Card.Body className="p-3">
+                                            <div className="d-flex justify-content-between align-items-start mb-2">
+                                                <div className="d-flex align-items-center flex-wrap gap-2">
+                                                    <h6 className="mb-0">ID: {item.id ?? 'N/A'}</h6>
+                                                    <span className="badge bg-light text-dark border">{item.name || 'Unnamed'}</span>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="mb-2">
-                                            <small className="text-muted d-block">
-                                                <strong>Supplier:</strong> {item.category || 'N/A'}
-                                            </small>
-                                            {item.description && (
+                                            <div className="mb-2">
                                                 <small className="text-muted d-block">
-                                                    <strong>Description:</strong> {item.description}
+                                                    <strong>Supplier:</strong> {item.category || 'N/A'}
                                                 </small>
-                                            )}
-                                        </div>
-
-                                        <div className="d-flex flex-wrap gap-3 mt-2 align-items-center">
-                                            <div className="d-flex align-items-center">
-                                                <span className="badge bg-light text-dark border me-2">
-                                                    Available Quantity
-                                                </span>
-                                                <span className="fw-bold fs-5" style={{color: quantityColor}}>
-                                                    {item.stockQuantity}
-                                                </span>
+                                                {item.description && (
+                                                    <small className="text-muted d-block">
+                                                        <strong>Description:</strong> {item.description}
+                                                    </small>
+                                                )}
                                             </div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
 
-                {hasSearched && searchResults.length === 0 && !loading && (
+                                            <div className="d-flex flex-wrap gap-3 mt-2 align-items-center">
+                                                <div className="d-flex align-items-center">
+                                                    <span className="badge bg-light text-dark border me-2">Available Quantity</span>
+                                                    <span className="fw-bold fs-5" style={{color: quantityColor}}>{item.stockQuantity}</span>
+                                                </div>
+                                            </div>
+                                        </Card.Body>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (hasSearched && !loading && (
                     <div className="text-center text-muted p-4">
                         <Search size={48} className="mb-2 opacity-50" />
                         <p>No inventory items found matching the search criteria.</p>
                     </div>
-                )}
+                ))}
             </div>
         </div>
     );
+
 };
 
 export default InventorySearch;

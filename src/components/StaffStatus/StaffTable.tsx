@@ -377,9 +377,53 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         }
     };
 
-    const statusDot = (status: EmployeeStatus) => {
-        const color = LIGHT_STATUS_COLORS[status];
-        return <span style={{ width: 18, height: 18, backgroundColor: color, display: 'inline-block' }} />; // cuadrado sin texto
+    // Circular, clickable status indicator used in table rows
+    const nextStatus = (s: EmployeeStatus): EmployeeStatus => {
+        if (s === 'On Shift') return 'Shift Ended';
+        if (s === 'Shift Ended') return 'Delayed';
+        return 'On Shift';
+    };
+
+    const toggleStatus = (empId: string) => {
+        setEmployees(prev => {
+            const updated = prev.map(emp => {
+                if (emp.id !== empId) return emp;
+                const ns = nextStatus(emp.status);
+                return { ...emp, status: ns };
+            });
+            try {
+                const map = loadStatusMap();
+                const changed = updated.find(e => e.id === empId);
+                if (changed) {
+                    map[empId] = changed.status;
+                    saveStatusMap(map);
+                }
+            } catch { /* ignore */ }
+            try { window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } })); } catch { /* noop */ }
+            return updated;
+        });
+    };
+
+    const statusButton = (emp: Employee) => {
+        const color = LIGHT_STATUS_COLORS[emp.status];
+        return (
+            <button
+                type="button"
+                onClick={() => toggleStatus(emp.id)}
+                title={`Status: ${emp.status} — click to change`}
+                aria-label={`Change status for ${emp.firstName} ${emp.lastName}`}
+                style={{
+                    width: 20,
+                    height: 20,
+                    backgroundColor: color,
+                    display: 'inline-block',
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                }}
+            />
+        );
     };
 
     const openDeleteModal = (emp: Employee) => {
@@ -623,7 +667,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                             <td>{emp.position}</td>
                             <td>${emp.hourlyRate.toFixed(2)}</td>
                             <td>{formatContractDate(emp.contractDate)}</td>
-                            <td>{statusDot(emp.status)}</td>
+                            <td>{statusButton(emp)}</td>
                             <td>
                                 <Dropdown>
                                     <Dropdown.Toggle variant="outline-secondary" size="sm">

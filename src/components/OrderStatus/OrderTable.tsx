@@ -21,12 +21,6 @@ interface UpdateOrderEvent {
     tableNumber?: string | number;
 }
 
-declare global {
-    interface Window {
-        updateOrderTable?: (newOrder: UpdateOrderEvent) => void;
-    }
-}
-
 type RawOrder = Partial<OrderData> & {
     orderId?: number; // sometimes returned as orderId instead of id
     orderStatus?: string | null;
@@ -177,6 +171,20 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             const incoming = response.data || [];
             const mappedOrders: OrderTableRow[] = incoming.map(mapOrderData);
             setOrders(mappedOrders);
+            // Persist any delivery times reported by backend into localDeliveryTimes for consistent display
+            try {
+                const newDeliveryTimes: Record<string,string> = {};
+                mappedOrders.forEach(o => {
+                    if (o.id != null && o.deliveryTime) {
+                        newDeliveryTimes[o.id] = o.deliveryTime;
+                    }
+                });
+                // merge with existing (read from state) to preserve prior values
+                setLocalDeliveryTimes(prev => ({ ...(prev || {}), ...newDeliveryTimes }));
+                localStorage.setItem('orderDeliveryTimes', JSON.stringify({ ...(localStorage.getItem('orderDeliveryTimes') ? JSON.parse(localStorage.getItem('orderDeliveryTimes') as string) : {}), ...newDeliveryTimes }));
+            } catch {
+                // ignore persistence errors
+            }
         } catch (err) {
             let errorMessage = 'Error loading orders';
             if (err instanceof Error) errorMessage = err.message || errorMessage;
@@ -185,7 +193,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         } finally {
             setLoading(false);
         }
-    }, [mapOrderData, onToast]);
+    }, [mapOrderData, onToast, localDeliveryTimes]);
 
     useEffect(() => {
         // Load saved user preference for showing cancelled orders
@@ -200,34 +208,34 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, [showCancelled]);
 
     useEffect(() => {
-        window.updateOrderTable = (newOrder: UpdateOrderEvent) => {
-            const id = newOrder?.data?.id;
-            if (!id) return;
-            setLocalOrderTimes(times => {
-                if (!newOrder.requestTime) return times;
-                const updated = { ...times, [id]: newOrder.requestTime };
-                localStorage.setItem('orderCreationTimes', JSON.stringify(updated));
-                return updated;
-            });
-            // Mark as recent (temporary highlight)
-            setRecentOrders(prev => {
-                const next = new Set(prev);
-                if (typeof id === 'number') next.add(id); else next.add(Number(id));
-                return next;
-            });
-            // Remove highlight after 30s
-            setTimeout(() => {
-                setRecentOrders(prev => {
-                    const next = new Set(prev);
-                    next.delete(Number(id));
-                    return next;
-                });
-            }, 30000);
-            // Optimistic patch for fast UI feedback
-            setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
-            setTimeout(() => { loadOrders().then(()=>{}); }, 250);
-        };
-        return () => { window.updateOrderTable = undefined; };
+        (window as any).updateOrderTable = (newOrder: UpdateOrderEvent) => {
+             const id = newOrder?.data?.id;
+             if (!id) return;
+             setLocalOrderTimes(times => {
+                 if (!newOrder.requestTime) return times;
+                 const updated = { ...times, [id]: newOrder.requestTime };
+                 localStorage.setItem('orderCreationTimes', JSON.stringify(updated));
+                 return updated;
+             });
+             // Mark as recent (temporary highlight)
+             setRecentOrders(prev => {
+                 const next = new Set(prev);
+                 if (typeof id === 'number') next.add(id); else next.add(Number(id));
+                 return next;
+             });
+             // Remove highlight after 30s
+             setTimeout(() => {
+                 setRecentOrders(prev => {
+                     const next = new Set(prev);
+                     next.delete(Number(id));
+                     return next;
+                 });
+             }, 30000);
+             // Optimistic patch for fast UI feedback
+             setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
+             setTimeout(() => { loadOrders().then(()=>{}); }, 250);
+         };
+        return () => { (window as any).updateOrderTable = undefined; };
     }, [loadOrders]);
 
     useEffect(() => {
@@ -301,15 +309,31 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             const backendStatus = mapStatusToBackend(newStatus);
             const resp = await updateOrderStatus(Number(order.id), backendStatus);
             const data = resp.data || {};
-            const backendReported = (data.status ?? (data as { orderStatus?: string }).orderStatus ?? backendStatus);
+            // backend may return delivery time under deliveryTime or deliverTime
+            const respObj = data as unknown;
+            let serverDeliveryRaw: unknown = undefined;
+            if (respObj && typeof respObj === 'object') {
+                const obj = respObj as Record<string, unknown>;
+                serverDeliveryRaw = obj['deliveryTime'] ?? obj['deliverTime'];
+            }
+            const backendReported = (data && (data as any).status) ?? ((data as any).orderStatus) ?? backendStatus;
             const english = mapStatusToEnglish(backendReported);
 
             const deliveryTimeUpd = english === 'Delivered'
-                ? (data.deliveryTime ? (() => { try { const dt = new Date(data.deliveryTime); return isNaN(dt.getTime()) ? order.deliveryTime : dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}); } catch { return order.deliveryTime; } })() : new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}))
-                : data.deliveryTime || order.deliveryTime;
+                ? (serverDeliveryRaw ? (() => { try { const dt = new Date(String(serverDeliveryRaw)); return isNaN(dt.getTime()) ? order.deliveryTime : dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}); } catch { return order.deliveryTime; } })() : new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}))
+                : (serverDeliveryRaw ? String(serverDeliveryRaw) : order.deliveryTime);
 
             const prevStatus = order.status;
             setOrders(prev => prev.map(o => o.code === code ? {...o, status: english, deliveryTime: deliveryTimeUpd} : o));
+
+            // Persist delivery time locally keyed by order id so table shows it reliably
+            try {
+                if (order.id != null && deliveryTimeUpd) {
+                    const newDeliveryTimes = { ...localDeliveryTimes, [order.id]: deliveryTimeUpd };
+                    setLocalDeliveryTimes(newDeliveryTimes);
+                    localStorage.setItem('orderDeliveryTimes', JSON.stringify(newDeliveryTimes));
+                }
+            } catch { /* ignore */ }
 
             // Fire global event for real‑time notification component
             try {
@@ -323,7 +347,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                         timestamp: Date.now()
                     }
                 }));
-            } catch (e) { /* noop */ }
+            } catch { /* noop */ }
 
             onToast(`Order ${code} updated to ${english}`, 'success');
         } catch (err) {

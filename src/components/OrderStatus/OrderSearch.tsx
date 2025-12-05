@@ -202,13 +202,10 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
     };
 
     useEffect(() => {
-        // Auto-load all orders on first mount for immediate context
-        (async () => {
-            if (!hasSearched && searchResults.length === 0) {
-                await performSearch();
-            }
-        })();
-    }, []);
+        // Auto-load all orders on mount
+        // performSearch is stable (useCallback) so it's safe to call and include as dependency
+        (async () => { await performSearch(); })();
+    }, [performSearch]);
 
     const getStatusVisualStyle = (status: string | undefined): { bg: string; border: string; text: string; left: string } => {
         const s = normalizeBackendStatus(status).toLowerCase();
@@ -264,7 +261,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                 </Alert>
             )}
 
-            <div className="flex-grow-1 overflow-auto">
+            <div className="flex-grow-1 overflow-auto" style={{ minHeight: 0 }}>
                 {hasSearched && (
                     <div className="mb-2 d-flex flex-wrap justify-content-between align-items-center">
                         <h6 className="text-muted mb-2 mb-sm-0">
@@ -273,102 +270,103 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                     </div>
                 )}
 
-                {searchResults.length > 0 && (
-                    <div className="d-flex flex-column gap-2">
-                        {searchResults.map((order) => {
-                            const visual = getStatusVisualStyle(order.status);
-                            return (
-                            <Card
-                                key={order.id}
-                                className="border-0 shadow-sm position-relative"
-                                style={{
-                                    borderLeft: `4px solid ${visual.left}`,
-                                    background: '#ffffff'
-                                }}
-                            >
-                                <Card.Body className="p-3">
-                                    <div className="d-flex justify-content-between align-items-start mb-2">
-                                        <div className="d-flex align-items-center">
-                                            <h6 className="mb-0 me-2">
-                                                Order #{order.id}
-                                            </h6>
-                                            <span
-                                                className="badge"
-                                                style={{
-                                                    backgroundColor: visual.bg,
-                                                    color: visual.text,
-                                                    border: `1px solid ${visual.border}`,
-                                                    fontWeight: 500
-                                                }}
-                                            >
-                                                {translateStatus(order.status)}
-                                            </span>
-                                        </div>
-                                        <div className="text-end">
-                                            <div className="fw-bold" style={{color: '#087f5b'}}>
-                                                <CurrencyDollar size={16} />
-                                                {(order.price ?? order.totalPrice ?? 0).toFixed(1)}
-                                            </div>
-                                            {order.orderDate && (
-                                                <small className="text-muted">
-                                                    <Clock size={14} className="me-1" />
-                                                    {formatOrderDate(order.orderDate)}
-                                                </small>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="mb-2">
-                                        <div className="d-flex align-items-center text-muted mb-1">
-                                            {/* Table badge if present */}
-                                            {extractTableNumber(order.details) && (
-                                                <span className="badge bg-light text-dark">
-                                                    {extractTableNumber(order.details)}
+                {searchResults.length > 0 ? (
+                    // limit visible height to show up to 2 order cards; enable scrolling if more
+                    <div style={{ maxHeight: 320, overflowY: searchResults.length > 2 ? 'auto' : 'visible' }}>
+                        <div className="d-flex flex-column gap-2">
+                            {searchResults.map((order) => {
+                                const visual = getStatusVisualStyle(order.status);
+                                return (
+                                <Card
+                                    key={order.id}
+                                    className="border-0 shadow-sm position-relative"
+                                    style={{
+                                        borderLeft: `4px solid ${visual.left}`,
+                                        background: '#ffffff'
+                                    }}
+                                >
+                                    <Card.Body className="p-3">
+                                        <div className="d-flex justify-content-between align-items-start mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <h6 className="mb-0 me-2">
+                                                    Order #{order.id}
+                                                </h6>
+                                                <span
+                                                    className="badge"
+                                                    style={{
+                                                        backgroundColor: visual.bg,
+                                                        color: visual.text,
+                                                        border: `1px solid ${visual.border}`,
+                                                        fontWeight: 500
+                                                    }}
+                                                >
+                                                    {translateStatus(order.status)}
                                                 </span>
-                                            )}
+                                            </div>
+                                            <div className="text-end">
+                                                <div className="fw-bold" style={{color: '#087f5b'}}>
+                                                    <CurrencyDollar size={16} />
+                                                    {(order.price ?? order.totalPrice ?? 0).toFixed(1)}
+                                                </div>
+                                                {order.orderDate && (
+                                                    <small className="text-muted">
+                                                        <Clock size={14} className="me-1" />
+                                                        {formatOrderDate(order.orderDate)}
+                                                    </small>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {Array.isArray(order.items) && order.items.length > 0 && (
-                                        <div className="mt-2">
-                                            <small className="text-muted d-block mb-1">Products:</small>
-                                            <div className="d-flex flex-wrap gap-1">
-                                                {order.items?.map((item, index) => (
-                                                    <span
-                                                        key={index}
-                                                        className="badge rounded-pill"
-                                                        style={{
-                                                            background:'#f1f3f5',
-                                                            color:'#0a0a0a',
-                                                            border:'1px solid #dee2e6',
-                                                            fontWeight:400
-                                                        }}
-                                                    >
-                                                        {item}
+                                        <div className="mb-2">
+                                            <div className="d-flex align-items-center text-muted mb-1">
+                                                {/* Table badge if present */}
+                                                {extractTableNumber(order.details) && (
+                                                    <span className="badge bg-light text-dark">
+                                                        {extractTableNumber(order.details)}
                                                     </span>
-                                                ))}
+                                                )}
                                             </div>
                                         </div>
-                                    )}
-                                    {order.notes && (
-                                        <div className="mt-2">
-                                            <small className="text-muted d-block mb-1">Notes:</small>
-                                            <div className="bg-white border rounded p-2 small" style={{whiteSpace: 'pre-wrap'}}>
-                                                {order.notes}
-                                            </div>
-                                        </div>
-                                    )}
-                                </Card.Body>
-                            </Card>)})}
-                    </div>
-                )}
 
-                {hasSearched && searchResults.length === 0 && !loading && (
+                                        {Array.isArray(order.items) && order.items.length > 0 && (
+                                            <div className="mt-2">
+                                                <small className="text-muted d-block mb-1">Products:</small>
+                                                <div className="d-flex flex-wrap gap-1">
+                                                    {order.items?.map((item, index) => (
+                                                        <span
+                                                            key={index}
+                                                            className="badge rounded-pill"
+                                                            style={{
+                                                                background:'#f1f3f5',
+                                                                color:'#0a0a0a',
+                                                                border:'1px solid #dee2e6',
+                                                                fontWeight:400
+                                                            }}
+                                                        >
+                                                            {item}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {order.notes && (
+                                            <div className="mt-2">
+                                                <small className="text-muted d-block mb-1">Notes:</small>
+                                                <div className="bg-white border rounded p-2 small" style={{whiteSpace: 'pre-wrap'}}>
+                                                    {order.notes}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </Card.Body>
+                                </Card>)})}
+                        </div>
+                    </div>
+                ) : (hasSearched && !loading && (
                     <div className="text-center text-muted p-4">
                         <Search size={48} className="mb-2 opacity-50" />
                         <p>No orders found matching the search criteria.</p>
                     </div>
-                )}
+                ))}
             </div>
         </div>
     );

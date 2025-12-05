@@ -165,15 +165,15 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                 <h6 className="mb-2">Status Indicators</h6>
                                 <div className="d-flex flex-row flex-wrap justify-content-end align-items-center" style={{ gap: '1.25rem' }}>
                                     <div className="d-flex align-items-center gap-2">
-                                        <span style={{ width: 18, height: 18, backgroundColor: '#75c39b', display: 'inline-block' }} />
+                                        <span style={{ width: 18, height: 18, backgroundColor: '#75c39b', display: 'inline-block', borderRadius: '50%' }} />
                                         <span className="small">On Shift</span>
                                     </div>
                                     <div className="d-flex align-items-center gap-2">
-                                        <span style={{ width: 18, height: 18, backgroundColor: '#ffdd63', display: 'inline-block' }} />
+                                        <span style={{ width: 18, height: 18, backgroundColor: '#ffdd63', display: 'inline-block', borderRadius: '50%' }} />
                                         <span className="small">Delayed</span>
                                     </div>
                                     <div className="d-flex align-items-center gap-2">
-                                        <span style={{ width: 18, height: 18, backgroundColor: '#f28b9b', display: 'inline-block' }} />
+                                        <span style={{ width: 18, height: 18, backgroundColor: '#f28b9b', display: 'inline-block', borderRadius: '50%' }} />
                                         <span className="small">Shift Ended</span>
                                     </div>
                                 </div>
