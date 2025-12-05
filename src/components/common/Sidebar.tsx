@@ -1,4 +1,4 @@
-import {type JSX, useState, useEffect} from 'react';
+import {type JSX, useState} from 'react';
 import { Nav, Modal } from 'react-bootstrap';
 import {
     House,
@@ -31,23 +31,8 @@ type NavItem = {
     active?: boolean;
 };
 
-const Sidebar = ({ activeSection, onSectionChange, userName, userType, userId }: SidebarProps) => {
+const Sidebar = ({ activeSection, onSectionChange, userName, userType }: SidebarProps) => {
     const [showImageModal, setShowImageModal] = useState(false);
-    const [currentType, setCurrentType] = useState<string | undefined>(userType);
-
-    useEffect(() => { setCurrentType(userType); }, [userType]);
-
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail as { id?: string; newType?: string } | undefined;
-            if (!detail) return;
-            if (detail.id && userId && detail.id === userId && detail.newType) {
-                setCurrentType(detail.newType.toUpperCase());
-            }
-        };
-        window.addEventListener('user-role-updated', handler as EventListener);
-        return () => window.removeEventListener('user-role-updated', handler as EventListener);
-    }, [userId]);
 
     // Function to format the user type (default fallback EMPLOYEE)
     const formatUserType = (type?: string) => {

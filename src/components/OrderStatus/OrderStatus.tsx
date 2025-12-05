@@ -39,6 +39,12 @@ const comboComponents: Record<number, { productId: number; quantity: number }[]>
     6: [ { productId: 1, quantity: 2 }, { productId: 2, quantity: 2 }, { productId: 3, quantity: 2 } ]
 };
 
+declare global {
+    interface Window {
+        updateOrderTable?: (payload: { data: { id: number }, requestTime: string, tableNumber: string }) => void;
+    }
+}
+
 const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
     const [searchTerm] = useState('');
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -155,7 +161,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                         // If parsing/storage fails, log to console (non-fatal)
                         console.warn('Could not persist order note locally', err);
                     }
-                    (window as any).updateOrderTable?.({ data: { id: orderId }, requestTime: localTime, tableNumber: newOrder.tableNumber });
+                    window.updateOrderTable?.({ data: { id: orderId }, requestTime: localTime, tableNumber: newOrder.tableNumber });
                     try {
                         window.dispatchEvent(new CustomEvent('order-created', { detail: { id: orderId, code: `ORD-${orderId}`, table: newOrder.tableNumber, timestamp: Date.now() } }));
                     } catch (err) {
@@ -165,19 +171,8 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
                 onToast(`Order #${data.id} created at ${localTime} for a total of $${data.price}`, 'success');
                 setNewOrder({ tableNumber: '', selectedItems: [], notes: '' });
             })
-            .catch(err => {
-                let msg = 'Could not create order';
-                try {
-                    const maybe = err as unknown;
-                    if (maybe && typeof maybe === 'object' && 'response' in (maybe as Record<string, unknown>)) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        msg = ((maybe as any).response?.data?.message) || (err instanceof Error ? err.message : msg);
-                    } else if (err instanceof Error) {
-                        msg = err.message;
-                    }
-                } catch {
-                    // fallback
-                }
+            .catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : 'Could not create order';
                 onToast(msg, 'error');
             })
             .finally(() => setShowCreateModal(false));

@@ -123,22 +123,24 @@ const SupplierSearch: React.FC<SupplierSearchProps> = ({ items, onSearch }) => {
                         {searchResults.length === 0 ? (
                             <div className="text-muted text-center">No supplier orders found.</div>
                         ) : (
-                            <Row>
-                                {searchResults.map(item => (
-                                    <Col md={6} lg={4} key={item.orderId ?? item.orderDate} className="mb-3">
-                                        <Card>
-                                            <Card.Body>
-                                                <Card.Title>Order #{item.orderId}</Card.Title>
-                                                <Card.Subtitle className="mb-2 text-muted">Status: {item.status}</Card.Subtitle>
-                                                <Card.Text>
-                                                    <strong>Date:</strong> {item.orderDate}<br />
-                                                    <strong>Total:</strong> ${item.totalAmount}
-                                                </Card.Text>
-                                            </Card.Body>
-                                        </Card>
-                                    </Col>
-                                ))}
-                            </Row>
+                            <div style={{ maxHeight: 220, overflowY: 'auto', overflowX: 'hidden' }}>
+                                <Row>
+                                    {searchResults.map(item => (
+                                        <Col md={6} lg={4} key={item.orderId ?? item.orderDate} className="mb-3">
+                                            <Card className="h-100" style={{ minHeight: 180 }}>
+                                                <Card.Body>
+                                                    <Card.Title>Order #{item.orderId}</Card.Title>
+                                                    <Card.Subtitle className="mb-2 text-muted">Status: {item.status}</Card.Subtitle>
+                                                    <Card.Text>
+                                                        <strong>Date:</strong> {item.orderDate}<br />
+                                                        <strong>Total:</strong> ${item.totalAmount}
+                                                    </Card.Text>
+                                                </Card.Body>
+                                            </Card>
+                                        </Col>
+                                    ))}
+                                </Row>
+                            </div>
                         )}
                     </div>
                 )}

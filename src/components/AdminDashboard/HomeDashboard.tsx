@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Container } from 'react-bootstrap';
 import DashboardQuickAccess from './DashboardQuickAccess';
-import { AlertItem } from './DashboardNotifications';
+import type { AlertItem } from './DashboardNotifications';
 import { useToast } from '../hooks/useToast';
 
 const HomeDashboard: React.FC = () => {

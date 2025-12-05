@@ -50,6 +50,10 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
         }));
     };
 
+    const handleFormChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        handleInputChange(field, e.target.value);
+    };
+
     const mapBackendToInventoryItem = useCallback((item: InventoryItemBackend): InventoryItem => {
         // Backend may return different field names, handle both formats
         const quantity = item.quantity ?? item.stockQuantity ?? item.baseQuantity ?? 0;
@@ -206,7 +210,7 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                                 type="text"
                                 placeholder="Ex: Tomato"
                                 value={searchForm.name}
-                                onChange={(e) => handleInputChange('name', e.target.value)}
+                                onChange={handleFormChange('name')}
                             />
                         </InputGroup>
                     </Col>
@@ -220,7 +224,7 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                                 type="text"
                                 placeholder="Ex: 123"
                                 value={searchForm.itemId}
-                                onChange={(e) => handleInputChange('itemId', e.target.value)}
+                                onChange={handleFormChange('itemId')}
                             />
                         </InputGroup>
                     </Col>
@@ -232,7 +236,7 @@ const InventorySearch: React.FC<InventorySearchProps> = ({ onSearch }) => {
                             </InputGroup.Text>
                             <Form.Select
                                 value={searchForm.supplierId}
-                                onChange={(e) => handleInputChange('supplierId', e.target.value)}
+                                onChange={handleFormChange('supplierId')}
                                 style={{borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
                             >
                                 {suppliers.map(supplier => (

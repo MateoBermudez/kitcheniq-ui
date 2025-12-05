@@ -40,12 +40,19 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
+    // Helpers to update form state in a typed way (avoid any)
+    const updateNewEmployeeField = (name: keyof NewEmployee, value: string) => {
         setNewEmployee(prev => ({ ...prev, [name]: value }));
+    };
+    const updateShiftField = (name: 'fromId' | 'toId', value: string) => {
+        setShiftForm(prev => ({ ...prev, [name]: value }));
     };
 
     const ALLOWED_POSITIONS: Array<'Admin' | 'Chef' | 'Waiter'> = ['Admin', 'Chef', 'Waiter'];
+    const isAllowedPosition = (position: string): boolean => {
+        const p = position.trim();
+        return ALLOWED_POSITIONS.includes(p as 'Admin' | 'Chef' | 'Waiter');
+    };
 
     const toEmployeeType = (position: string): EmployeeTypeCode => {
         const p = position.trim().toUpperCase();
@@ -58,7 +65,7 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
         if (!newEmployee.id.trim()) { onToast?.('Employee ID is required', 'error'); return; }
         if (!newEmployee.firstName.trim()) { onToast?.('First name is required', 'error'); return; }
         if (!newEmployee.lastName.trim()) { onToast?.('Last name is required', 'error'); return; }
-        if (!newEmployee.position.trim() || !ALLOWED_POSITIONS.includes(newEmployee.position as any)) {
+        if (!newEmployee.position.trim() || !isAllowedPosition(newEmployee.position)) {
             onToast?.('Position must be Admin, Chef, or Waiter', 'error'); return;
         }
         const rate = parseFloat(newEmployee.hourlyRate);
@@ -101,11 +108,6 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
             const msg = err instanceof Error ? err.message : 'Could not create employee';
             onToast?.(msg, 'error');
         }
-    };
-
-    const handleShiftInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setShiftForm(f => ({ ...f, [name]: value }));
     };
 
     const isShiftDisabled = !shiftForm.fromId.trim() || !shiftForm.toId.trim() || shiftForm.fromId.trim() === shiftForm.toId.trim();
@@ -215,13 +217,13 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <PersonBadge size={14} className="me-1" /> Employee ID *
                                     </Form.Label>
                                     <Form.Control
-                                        type="text"
-                                        name="id"
-                                        value={newEmployee.id}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. 1000000012"
-                                        required
-                                        className="shadow-sm"
+                                         type="text"
+                                         name="id"
+                                         value={newEmployee.id}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateNewEmployeeField('id', e.currentTarget.value)}
+                                         placeholder="e.g. 1000000012"
+                                         required
+                                         className="shadow-sm"
                                     />
                                 </Form.Group>
                             </Col>
@@ -231,11 +233,11 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <Person size={14} className="me-1" /> Position *
                                     </Form.Label>
                                     <Form.Select
-                                        name="position"
-                                        value={newEmployee.position}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="shadow-sm"
+                                         name="position"
+                                         value={newEmployee.position}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateNewEmployeeField('position', e.currentTarget.value)}
+                                         required
+                                         className="shadow-sm"
                                     >
                                         <option value="">Select a position</option>
                                         <option value="Admin">Admin</option>
@@ -250,13 +252,13 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <Person size={14} className="me-1" /> Name (s) *
                                     </Form.Label>
                                     <Form.Control
-                                        type="text"
-                                        name="firstName"
-                                        value={newEmployee.firstName}
-                                        onChange={handleInputChange}
-                                        placeholder="Enter first name"
-                                        required
-                                        className="shadow-sm"
+                                         type="text"
+                                         name="firstName"
+                                         value={newEmployee.firstName}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateNewEmployeeField('firstName', e.currentTarget.value)}
+                                         placeholder="Enter first name"
+                                         required
+                                         className="shadow-sm"
                                     />
                                 </Form.Group>
                             </Col>
@@ -266,13 +268,13 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <Person size={14} className="me-1" /> Last Name (s) *
                                     </Form.Label>
                                     <Form.Control
-                                        type="text"
-                                        name="lastName"
-                                        value={newEmployee.lastName}
-                                        onChange={handleInputChange}
-                                        placeholder="Enter last name"
-                                        required
-                                        className="shadow-sm"
+                                         type="text"
+                                         name="lastName"
+                                         value={newEmployee.lastName}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateNewEmployeeField('lastName', e.currentTarget.value)}
+                                         placeholder="Enter last name"
+                                         required
+                                         className="shadow-sm"
                                     />
                                 </Form.Group>
                             </Col>
@@ -282,15 +284,15 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <CashCoin size={14} className="me-1" /> Hourly Rate (USD) *
                                     </Form.Label>
                                     <Form.Control
-                                        type="number"
-                                        name="hourlyRate"
-                                        value={newEmployee.hourlyRate}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. 15.00"
-                                        min="0.01"
-                                        step="0.01"
-                                        required
-                                        className="shadow-sm"
+                                         type="number"
+                                         name="hourlyRate"
+                                         value={newEmployee.hourlyRate}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateNewEmployeeField('hourlyRate', e.currentTarget.value)}
+                                         placeholder="e.g. 15.00"
+                                         min="0.01"
+                                         step="0.01"
+                                         required
+                                         className="shadow-sm"
                                     />
                                 </Form.Group>
                             </Col>
@@ -300,12 +302,12 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                                         <Calendar size={14} className="me-1" /> Contract Date *
                                     </Form.Label>
                                     <Form.Control
-                                        type="date"
-                                        name="contractDate"
-                                        value={newEmployee.contractDate}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="shadow-sm"
+                                         type="date"
+                                         name="contractDate"
+                                         value={newEmployee.contractDate}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateNewEmployeeField('contractDate', e.currentTarget.value)}
+                                         required
+                                         className="shadow-sm"
                                     />
                                 </Form.Group>
                             </Col>
@@ -341,7 +343,7 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
             </Modal>
 
             {/* Shift change modal */}
-            <Modal show={showShiftModal} onHide={() => setShowShiftModal(false)} centered size="md">
+            <Modal show={showShiftModal} onHide={() => setShowShiftModal(false)} centered size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Shift Change</Modal.Title>
                 </Modal.Header>
@@ -350,24 +352,24 @@ const StaffStatus: React.FC<StaffStatusProps> = ({ onToast }) => {
                         <Form.Group className="mb-3" controlId="fromId">
                             <Form.Label className="fw-semibold small text-uppercase">Outgoing Employee (ID) *</Form.Label>
                             <Form.Control
-                                type="text"
-                                name="fromId"
-                                value={shiftForm.fromId}
-                                onChange={handleShiftInputChange}
-                                placeholder="ID of employee ending shift"
-                                className="shadow-sm"
-                            />
+                                 type="text"
+                                 name="fromId"
+                                 value={shiftForm.fromId}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateShiftField('fromId', e.currentTarget.value)}
+                                 placeholder="ID of employee ending shift"
+                                 className="shadow-sm"
+                             />
                         </Form.Group>
                         <Form.Group className="mb-3" controlId="toId">
                             <Form.Label className="fw-semibold small text-uppercase">Incoming Employee (ID) *</Form.Label>
                             <Form.Control
-                                type="text"
-                                name="toId"
-                                value={shiftForm.toId}
-                                onChange={handleShiftInputChange}
-                                placeholder="ID of employee starting shift"
-                                className="shadow-sm"
-                            />
+                                 type="text"
+                                 name="toId"
+                                 value={shiftForm.toId}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateShiftField('toId', e.currentTarget.value)}
+                                 placeholder="ID of employee starting shift"
+                                 className="shadow-sm"
+                             />
                         </Form.Group>
                         {isShiftDisabled && (
                             <div className="alert alert-warning py-2 small">IDs are required and must be different.</div>

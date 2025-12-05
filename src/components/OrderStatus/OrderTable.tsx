@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Badge, Button, Spinner, Alert, Modal, Collapse, Dropdown } from 'react-bootstrap';
 import {
     ArrowClockwise,
@@ -7,7 +7,6 @@ import {
     CheckCircle,
     Box,
     XCircle,
-    Clipboard,
     Trash,
     Plus,
     Dash
@@ -65,6 +64,11 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         const saved = localStorage.getItem('orderDeliveryTimes');
         return saved ? JSON.parse(saved) : {};
     });
+    // Pagination for render performance: only render a page of rows at a time
+    const PAGE_SIZE = 50; // keep reasonable default
+    const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
+    // Prevent overlapping fetches
+    const isFetchingRef = useRef<boolean>(false);
     const [showCancelled, setShowCancelled] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
     // New state variables: status filter and recent highlight set
@@ -136,7 +140,8 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         };
 
         const requestTime = formatTime(raw.requestTime) || 'N/A';
-        const deliveryTime = formatTime(raw.deliverTime);
+        const rawDelivery = raw.deliveryTime ?? raw.deliverTime ?? null;
+        const deliveryTime = formatTime(rawDelivery);
 
         const tableNumber = raw.tableNumber ?? (raw.table ? parseInt(raw.table, 10) : 0);
         const tableDisplay = tableNumber > 0 ? String(tableNumber) : 'N/A';
@@ -163,37 +168,60 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         };
     }, [mapStatusToEnglish]);
 
-    const loadOrders = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const response = await getAllOrders() as { data: RawOrder[] };
-            const incoming = response.data || [];
-            const mappedOrders: OrderTableRow[] = incoming.map(mapOrderData);
-            setOrders(mappedOrders);
-            // Persist any delivery times reported by backend into localDeliveryTimes for consistent display
-            try {
-                const newDeliveryTimes: Record<string,string> = {};
-                mappedOrders.forEach(o => {
-                    if (o.id != null && o.deliveryTime) {
-                        newDeliveryTimes[o.id] = o.deliveryTime;
-                    }
-                });
-                // merge with existing (read from state) to preserve prior values
+    const loadOrders = useCallback(async (opts?: { showSpinner?: boolean }) => {
+         if (isFetchingRef.current) return; // avoid concurrent fetches
+         isFetchingRef.current = true;
+         try {
+            if (opts?.showSpinner) setLoading(true);
+             setError(null);
+             const response = await getAllOrders() as { data: RawOrder[] };
+             const incoming = response.data || [];
+             const mappedOrders: OrderTableRow[] = incoming.map(mapOrderData);
+             setOrders(mappedOrders);
+             // Persist any delivery times reported by backend into localDeliveryTimes for consistent display
+             try {
+                 const newDeliveryTimes: Record<string,string> = {};
+                 mappedOrders.forEach(o => {
+                     if (o.id != null && o.deliveryTime) {
+                         newDeliveryTimes[o.id] = o.deliveryTime;
+                     }
+                 });
+                 // merge with existing (read from state) to preserve prior values
                 setLocalDeliveryTimes(prev => ({ ...(prev || {}), ...newDeliveryTimes }));
                 localStorage.setItem('orderDeliveryTimes', JSON.stringify({ ...(localStorage.getItem('orderDeliveryTimes') ? JSON.parse(localStorage.getItem('orderDeliveryTimes') as string) : {}), ...newDeliveryTimes }));
-            } catch {
-                // ignore persistence errors
-            }
-        } catch (err) {
-            let errorMessage = 'Error loading orders';
-            if (err instanceof Error) errorMessage = err.message || errorMessage;
-            setError(errorMessage);
-            onToast(errorMessage, 'error');
-        } finally {
-            setLoading(false);
-        }
-    }, [mapOrderData, onToast, localDeliveryTimes]);
+             } catch {
+                 // ignore persistence errors
+             }
+         } catch (err) {
+             let errorMessage = 'Error loading orders';
+             if (err instanceof Error) errorMessage = err.message || errorMessage;
+             setError(errorMessage);
+             onToast(errorMessage, 'error');
+         } finally {
+            if (opts?.showSpinner) setLoading(false);
+             isFetchingRef.current = false;
+         }
+     }, [mapOrderData, onToast]);
+
+    // When filters or orders change, reset the visible count so user sees top of filtered list
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [/* reset on orders or filter changes */ orders.length]);
+
+    const filteredOrders = React.useMemo(() => {
+         let list = [...orders];
+         if (!showCancelled) list = list.filter(o => o.status !== 'Cancelled');
+         if (statusFilter !== 'ALL') list = list.filter(o => o.status === statusFilter);
+         if (searchTerm) list = list.filter(o => o.code?.toLowerCase().includes(searchTerm.toLowerCase()));
+         list.sort((a, b) => {
+             if (a.status === 'Ready' && b.status !== 'Ready') return -1;
+             if (a.status !== 'Ready' && b.status === 'Ready') return 1;
+             if (a.status === 'Delivered' && b.status !== 'Delivered') return 1;
+             if (a.status !== 'Delivered' && b.status === 'Delivered') return -1;
+             return 0;
+         });
+         return list;
+     }, [orders, searchTerm, showCancelled, statusFilter]);
 
     useEffect(() => {
         // Load saved user preference for showing cancelled orders
@@ -208,51 +236,54 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
     }, [showCancelled]);
 
     useEffect(() => {
-        (window as any).updateOrderTable = (newOrder: UpdateOrderEvent) => {
-             const id = newOrder?.data?.id;
-             if (!id) return;
-             setLocalOrderTimes(times => {
-                 if (!newOrder.requestTime) return times;
-                 const updated = { ...times, [id]: newOrder.requestTime };
-                 localStorage.setItem('orderCreationTimes', JSON.stringify(updated));
-                 return updated;
-             });
-             // Mark as recent (temporary highlight)
-             setRecentOrders(prev => {
-                 const next = new Set(prev);
-                 if (typeof id === 'number') next.add(id); else next.add(Number(id));
-                 return next;
-             });
-             // Remove highlight after 30s
-             setTimeout(() => {
-                 setRecentOrders(prev => {
-                     const next = new Set(prev);
-                     next.delete(Number(id));
-                     return next;
-                 });
-             }, 30000);
-             // Optimistic patch for fast UI feedback
-             setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
-             setTimeout(() => { loadOrders().then(()=>{}); }, 250);
-         };
-        return () => { (window as any).updateOrderTable = undefined; };
+        window.updateOrderTable = (newOrder: UpdateOrderEvent) => {
+              const id = newOrder?.data?.id;
+              if (!id) return;
+              setLocalOrderTimes(times => {
+                  if (!newOrder.requestTime) return times;
+                  const updated = { ...times, [id]: newOrder.requestTime };
+                  localStorage.setItem('orderCreationTimes', JSON.stringify(updated));
+                  return updated;
+              });
+              // Mark as recent (temporary highlight)
+              setRecentOrders(prev => {
+                  const next = new Set(prev);
+                  if (typeof id === 'number') next.add(id); else next.add(Number(id));
+                  return next;
+              });
+              // Remove highlight after 30s
+              setTimeout(() => {
+                  setRecentOrders(prev => {
+                      const next = new Set(prev);
+                      next.delete(Number(id));
+                      return next;
+                  });
+              }, 30000);
+              // Optimistic patch for fast UI feedback
+              setOrders(prev => prev.map(o => o.id === Number(id) ? { ...o, requestTime: newOrder.requestTime || o.requestTime, table: newOrder.tableNumber ? String(newOrder.tableNumber) : o.table } : o));
+          };
+         return () => { window.updateOrderTable = undefined; };
     }, [loadOrders]);
 
+    // Initial load once on mount
     useEffect(() => {
-        loadOrders().then(() => {});
-    }, [loadOrders]);
+        loadOrders({ showSpinner: true }).then(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
+    // Single auto-refresh every 30 seconds
     useEffect(() => {
         const intervalId = setInterval(() => {
-            loadOrders().then(() => {});
+            loadOrders({ showSpinner: false }).then(() => {});
         }, 30000);
         return () => clearInterval(intervalId);
-    }, [loadOrders]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleRefresh = async () => {
         try {
             setRefreshing(true);
-            await loadOrders();
+            await loadOrders({ showSpinner: true });
             onToast('Orders updated successfully', 'success');
         } catch {
             onToast('Error updating orders', 'error');
@@ -261,20 +292,6 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         }
     };
 
-    const filteredOrders = React.useMemo(() => {
-        let list = [...orders];
-        if (!showCancelled) list = list.filter(o => o.status !== 'Cancelled');
-        if (statusFilter !== 'ALL') list = list.filter(o => o.status === statusFilter);
-        if (searchTerm) list = list.filter(o => o.code?.toLowerCase().includes(searchTerm.toLowerCase()));
-        list.sort((a, b) => {
-            if (a.status === 'Ready' && b.status !== 'Ready') return -1;
-            if (a.status !== 'Ready' && b.status === 'Ready') return 1;
-            if (a.status === 'Delivered' && b.status !== 'Delivered') return 1;
-            if (a.status !== 'Delivered' && b.status === 'Delivered') return -1;
-            return 0;
-        });
-        return list;
-    }, [orders, searchTerm, showCancelled, statusFilter]);
 
     const getBadgeStyle = useCallback((status: string): React.CSSProperties => {
         switch (status?.toLowerCase()) {
@@ -316,7 +333,13 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                 const obj = respObj as Record<string, unknown>;
                 serverDeliveryRaw = obj['deliveryTime'] ?? obj['deliverTime'];
             }
-            const backendReported = (data && (data as any).status) ?? ((data as any).orderStatus) ?? backendStatus;
+            let backendReported: string = backendStatus;
+            if (data && typeof data === 'object') {
+                const d = data as Record<string, unknown>;
+                const s1 = d['status'];
+                const s2 = d['orderStatus'];
+                backendReported = typeof s1 === 'string' ? s1 : (typeof s2 === 'string' ? s2 : backendStatus);
+            }
             const english = mapStatusToEnglish(backendReported);
 
             const deliveryTimeUpd = english === 'Delivered'
@@ -436,7 +459,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                     Check that the server is running correctly
                                 </small>
                             </div>
-                            <Button variant="outline-danger" size="sm" onClick={loadOrders}>
+                            <Button variant="outline-danger" size="sm" onClick={() => loadOrders({ showSpinner: true })}>
                                 <ArrowClockwise size={16} className="me-1" /> Retry
                             </Button>
                         </div>
@@ -513,7 +536,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                         </tr>
                         </thead>
                         <tbody>
-                        {filteredOrders.map((order, index) => (
+                        {filteredOrders.slice(0, visibleCount).map((order, index) => (
                             <React.Fragment key={order.code || order.id || index}>
                                 <tr key={order.code || order.id || index} style={order.id && recentOrders.has(order.id) ? { backgroundColor: '#e8f7ff', transition: 'background-color 0.5s' } : {}}>
                                     <td style={{width:'32px'}}>
@@ -597,18 +620,53 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                                                 <div className="bg-light p-3">
                                                     <h6 className="fw-bold mb-2">Items</h6>
                                                     {order.items.length > 0 ? (
-                                                        <div className="small">
-                                                            {order.items.map(it => (
-                                                                <div key={it.id} className="d-flex justify-content-between border-bottom py-1">
-                                                                    <span>{it.productName || `Item ${it.id}`}</span>
-                                                                    <span className="text-muted">x{it.quantity} @ ${(it.productPrice || 0).toFixed(2)}</span>
-                                                                </div>
-                                                            ))}
-                                                            <div className="mt-2 text-end fw-bold">Total ${(order.totalPrice ?? 0).toFixed(2)}</div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-muted fst-italic">No items parsed</div>
-                                                    )}
+                                                         <div className="small">
+                                                             {(() => {
+                                                                 // Helper to map names to English if needed
+                                                                 const toEnglish = (name: string): string => {
+                                                                     const map: Record<string,string> = {
+                                                                         'hamburguesa': 'Burger',
+                                                                         'papas fritas': 'Fries',
+                                                                         'refresco': 'Soda',
+                                                                         'pollo': 'Chicken',
+                                                                         'carne': 'Beef',
+                                                                         'ensalada': 'Salad',
+                                                                     };
+                                                                     const key = name.trim().toLowerCase();
+                                                                     return map[key] || name;
+                                                                 };
+                                                                 // Group items by productName and sum quantities
+                                                                 const groups = new Map<string, { name: string; quantity: number; price: number }>();
+                                                                 order.items.forEach(it => {
+                                                                     const rawName = it.productName || `Item ${it.id}`;
+                                                                     const englishName = toEnglish(rawName);
+                                                                     const key = englishName.toLowerCase();
+                                                                     const current = groups.get(key);
+                                                                     const qty = typeof it.quantity === 'number' ? it.quantity : 1;
+                                                                     const price = typeof it.productPrice === 'number' ? it.productPrice : 0;
+                                                                     if (current) {
+                                                                         current.quantity += qty;
+                                                                     } else {
+                                                                         groups.set(key, { name: englishName, quantity: qty, price });
+                                                                     }
+                                                                 });
+                                                                 const items = Array.from(groups.values());
+                                                                 return (
+                                                                     <div>
+                                                                         {items.map((g, idx) => (
+                                                                             <div key={idx} className="d-flex justify-content-between border-bottom py-1">
+                                                                                 <span>{g.name}</span>
+                                                                                 <span className="text-muted">x{g.quantity}</span>
+                                                                             </div>
+                                                                         ))}
+                                                                     </div>
+                                                                 );
+                                                             })()}
+                                                             <div className="mt-3 text-end fw-bold">Total ${(order.totalPrice ?? 0).toFixed(2)}</div>
+                                                         </div>
+                                                     ) : (
+                                                         <div className="text-muted fst-italic">No items parsed</div>
+                                                     )}
                                                 </div>
                                             </Collapse>
                                         </td>
@@ -620,17 +678,19 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
                     </Table>
                 </div>
 
-                {filteredOrders.length === 0 && !loading && (
-                    <div className="text-center py-5 text-muted">
-                        <div className="mb-2">
-                            <Clipboard size={24} />
-                        </div>
-                        <div>No orders found</div>
-                        {orders.length > 0 && (
-                            <small>
-                                There are {orders.length} orders in total, but none match the current filter
-                            </small>
-                        )}
+                {/* Pagination controls for table rendering to avoid rendering too many rows at once */}
+                {filteredOrders.length > visibleCount && (
+                    <div className="p-3 text-center">
+                        <Button size="sm" variant="outline-primary" onClick={() => setVisibleCount(c => Math.min(filteredOrders.length, c + PAGE_SIZE))}>
+                            Show more ({Math.min(PAGE_SIZE, filteredOrders.length - visibleCount)})
+                        </Button>
+                    </div>
+                )}
+                {filteredOrders.length > PAGE_SIZE && visibleCount > PAGE_SIZE && (
+                    <div className="p-2 text-center">
+                        <Button size="sm" variant="outline-secondary" onClick={() => setVisibleCount(PAGE_SIZE)}>
+                            Show less
+                        </Button>
                     </div>
                 )}
             </div>
@@ -673,5 +733,11 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
         </>
     );
 };
+
+declare global {
+    interface Window {
+        updateOrderTable?: (newOrder: { data?: { id?: number | string }, requestTime?: string, tableNumber?: string | number }) => void;
+    }
+}
 
 export default OrderTable;

@@ -14,7 +14,6 @@ import Supplier from "./views/Supplier.tsx";
 import './App.scss';
 import { getUserInfo } from './service/api';
 import Staff from "./views/Staff.tsx";
-import DashboardQuickAccess from './components/AdminDashboard/DashboardQuickAccess';
 import HomeDashboard from './components/AdminDashboard/HomeDashboard';
 import UnavailableSection from './components/common/UnavailableSection';
 
@@ -151,7 +150,6 @@ function MainLayout() {
     const location = useLocation();
     const [activeSection, setActiveSection] = useState('orders');
 
-    const isSupplierUser = user?.type === 'SUPPLIER';
 
     // Only derive active section from current path (no redirect logic here to avoid loops)
     useEffect(() => {
@@ -195,7 +193,6 @@ function MainLayout() {
                     onSectionChange={handleSectionChange}
                     userName={user?.name}
                     userType={user?.type}
-                    userId={user?.id || (user as any)?.userId}
                 />
                 <div className="flex-grow-1">
                     <Routes>

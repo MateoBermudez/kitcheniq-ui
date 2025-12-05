@@ -343,7 +343,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         return Array.from({ length: end - start + 1 }, (_, i) => start + i);
     }, [page, totalPages]);
 
-    const retryLoad = async () => {
+    const retryLoad = React.useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -357,7 +357,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [fetchAllEmployees, setListAndBroadcast, onToast]);
 
     const formatContractDate = (value: string): string => {
         if (!value) return 'N/A';
@@ -530,6 +530,10 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
 
     // Edit employee feature
     const POSITIONS: Array<'Admin'|'Chef'|'Waiter'> = ['Admin','Chef','Waiter'];
+    const isAllowedPosition = (position: string): boolean => {
+        const p = position.trim();
+        return POSITIONS.includes(p as 'Admin'|'Chef'|'Waiter');
+    };
     const toEmployeeType = (position: string): EmployeeTypeCode => {
         const p = position.trim().toUpperCase();
         if (p === 'ADMIN' || p === 'CHEF' || p === 'WAITER') return p as EmployeeTypeCode;
@@ -559,14 +563,14 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     };
 
     const canSave = useMemo(() => {
-        if (!editingId) return false;
-        if (!editForm.name.trim()) return false;
-        if (!editForm.lastName.trim()) return false;
-        if (!editForm.position.trim() || !POSITIONS.includes(editForm.position as any)) return false;
-        const rate = parseFloat(editForm.hourlyRate);
-        if (isNaN(rate) || rate <= 0) return false;
-        return true;
-    }, [editingId, editForm]);
+         if (!editingId) return false;
+         if (!editForm.name.trim()) return false;
+         if (!editForm.lastName.trim()) return false;
+         if (!editForm.position.trim() || !isAllowedPosition(editForm.position)) return false;
+         const rate = parseFloat(editForm.hourlyRate);
+         if (isNaN(rate) || rate <= 0) return false;
+         return true;
+    }, [editingId, editForm, isAllowedPosition]);
 
     const saveEdit = async () => {
         if (!editingId || !canSave) return;

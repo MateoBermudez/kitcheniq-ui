@@ -43,7 +43,7 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const refreshOrders = async () => {
+    const refreshOrders = React.useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -61,7 +61,11 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
                 return;
             }
             const response = await getAllSupplierItems(String(candidateId));
-            const data = (response as any).data ?? response;
+            let data: unknown = response;
+            if (response && typeof response === 'object' && 'data' in (response as Record<string, unknown>)) {
+                const r = response as { data?: unknown };
+                data = r.data ?? response;
+            }
             let orders: SupplierOrder[] = [];
             if (Array.isArray(data)) {
                 orders = data;
@@ -77,11 +81,11 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onToast]);
 
     useEffect(() => {
         refreshOrders();
-    }, []);
+    }, [refreshOrders]);
 
     return (
         <div className="d-flex flex-column" style={{backgroundColor: 'white'}}>
@@ -117,7 +121,7 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
                     </Col>
                     <Col md={6}>
                         <div className="p-3 border rounded-4 shadow h-100">
-                            <SupplierNotifications items={supplierOrders} onToast={onToast} />
+                            <SupplierNotifications items={supplierOrders} />
                         </div>
                     </Col>
                 </Row>

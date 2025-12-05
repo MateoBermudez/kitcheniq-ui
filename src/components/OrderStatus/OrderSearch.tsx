@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Form, Button, InputGroup, Row, Col, Card, Spinner, Alert } from 'react-bootstrap';
 import { Search, Clock, CurrencyDollar } from 'react-bootstrap-icons';
 import { getOrderById, getAllOrders } from '../../service/api';
@@ -141,46 +141,46 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
     }, []);
 
     const performSearch = useCallback(async (): Promise<void> => {
-        setLoading(true);
-        setError('');
-        setHasSearched(true);
-        try {
-            let results: Order[] = [];
-            if (searchForm.code.trim()) {
-                try {
-                    const response = await getOrderById(parseInt(searchForm.code));
-                    const backend: OrderBackend = response.data;
-                    results = [mapBackendToOrder(backend)];
-                } catch (err) {
-                    if (err && typeof err === 'object' && 'response' in err && (err as { response?: { status?: number } }).response?.status === 404) {
-                        results = [];
-                    } else {
-                        setError('Error searching by code');
-                    }
-                }
-            } else {
-                // get all orders
+         setLoading(true);
+         setError('');
+         setHasSearched(true);
+         try {
+             let results: Order[] = [];
+             if (searchForm.code.trim()) {
+                 try {
+                     const response = await getOrderById(parseInt(searchForm.code));
+                     const backend: OrderBackend = response.data;
+                     results = [mapBackendToOrder(backend)];
+                 } catch (err) {
+                     if (err && typeof err === 'object' && 'response' in err && (err as { response?: { status?: number } }).response?.status === 404) {
+                         results = [];
+                     } else {
+                         setError('Error searching by code');
+                     }
+                 }
+             } else {
+                // Empty input -> fetch all orders
                 const response = await getAllOrders();
                 const arr: OrderBackend[] = response.data as OrderBackend[];
                 results = arr.map(mapBackendToOrder);
-            }
-            try {
-                const notesRaw = localStorage.getItem('order_notes');
-                if (notesRaw) {
-                    const notesMap = JSON.parse(notesRaw) as Record<string, string>;
-                    results = results.map(r => ({ ...r, notes: notesMap[r.id] }));
-                }
-            } catch (e) {
-                console.warn('No se pudieron leer notas locales', e);
-            }
-            setSearchResults(results);
-            if (onSearch) onSearch(results);
-        } catch {
-            setError('Error searching orders');
-        } finally {
-            setLoading(false);
-        }
-    }, [searchForm, onSearch, mapBackendToOrder]);
+             }
+             try {
+                 const notesRaw = localStorage.getItem('order_notes');
+                 if (notesRaw) {
+                     const notesMap = JSON.parse(notesRaw) as Record<string, string>;
+                     results = results.map(r => ({ ...r, notes: notesMap[r.id] }));
+                 }
+             } catch (e) {
+                 console.warn('No se pudieron leer notas locales', e);
+             }
+             setSearchResults(results);
+             if (onSearch) onSearch(results);
+         } catch {
+             setError('Error searching orders');
+         } finally {
+             setLoading(false);
+         }
+     }, [searchForm, onSearch, mapBackendToOrder]);
 
     const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -201,11 +201,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
         }
     };
 
-    useEffect(() => {
-        // Auto-load all orders on mount
-        // performSearch is stable (useCallback) so it's safe to call and include as dependency
-        (async () => { await performSearch(); })();
-    }, [performSearch]);
+    // Do not auto-load on mount; wait for explicit search action
 
     const getStatusVisualStyle = (status: string | undefined): { bg: string; border: string; text: string; left: string } => {
         const s = normalizeBackendStatus(status).toLowerCase();
@@ -240,7 +236,7 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                         <InputGroup>
                             <Form.Control
                                 type="text"
-                                placeholder="Ex: 123 (empty = all orders)"
+                                placeholder="Ex: 123 (empty = no results)"
                                 value={searchForm.code}
                                 onChange={(e) => handleInputChange('code', e.target.value)}
                             />
@@ -331,22 +327,53 @@ const OrderSearch: React.FC<OrderSearchProps> = ({ onSearch }) => {
                                         {Array.isArray(order.items) && order.items.length > 0 && (
                                             <div className="mt-2">
                                                 <small className="text-muted d-block mb-1">Products:</small>
-                                                <div className="d-flex flex-wrap gap-1">
-                                                    {order.items?.map((item, index) => (
-                                                        <span
-                                                            key={index}
-                                                            className="badge rounded-pill"
-                                                            style={{
-                                                                background:'#f1f3f5',
-                                                                color:'#0a0a0a',
-                                                                border:'1px solid #dee2e6',
-                                                                fontWeight:400
-                                                            }}
-                                                        >
-                                                            {item}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                                                {(() => {
+                                                     // Translate to English and consolidate quantities from labels like "name xN"
+                                                     const toEnglish = (name: string): string => {
+                                                         const dict: Record<string, string> = {
+                                                             'papas fritas': 'Fries',
+                                                             'refresco': 'Soda',
+                                                             'hamburguesa': 'Burger',
+                                                             'pollo': 'Chicken',
+                                                             'carne': 'Beef',
+                                                             'ensalada': 'Salad',
+                                                         };
+                                                         const key = name.trim().toLowerCase();
+                                                         return dict[key] || name;
+                                                     };
+                                                    const capitalize = (s: string): string => s.length ? s[0].toUpperCase() + s.slice(1) : s;
+                                                    const groups = new Map<string, { name: string; total: number }>();
+                                                     order.items.forEach(label => {
+                                                         const raw = String(label).trim();
+                                                         // Extract name and optional trailing quantity like "name xN"
+                                                         const match = raw.match(/^(.*?)(?:\s+x(\d+))?$/i);
+                                                         const base = match ? match[1].trim() : raw;
+                                                         const qty = match && match[2] ? parseInt(match[2], 10) : 1;
+                                                        const english = toEnglish(base);
+                                                        const key = english.toLowerCase();
+                                                        const current = groups.get(key);
+                                                        const inc = isNaN(qty) ? 1 : qty;
+                                                        if (current) {
+                                                            current.total += inc;
+                                                        } else {
+                                                            groups.set(key, { name: capitalize(english), total: inc });
+                                                        }
+                                                     });
+                                                    const grouped = Array.from(groups.values());
+                                                     return (
+                                                         <div className="d-flex flex-wrap gap-1">
+                                                             {grouped.map((g, idx) => (
+                                                                 <span
+                                                                     key={idx}
+                                                                     className="badge rounded-pill"
+                                                                     style={{ background:'#f1f3f5', color:'#0a0a0a', border:'1px solid #dee2e6', fontWeight:500 }}
+                                                                 >
+                                                                     {g.name} <span className="ms-1">x{g.total}</span>
+                                                                 </span>
+                                                             ))}
+                                                         </div>
+                                                     );
+                                                 })()}
                                             </div>
                                         )}
                                         {order.notes && (
