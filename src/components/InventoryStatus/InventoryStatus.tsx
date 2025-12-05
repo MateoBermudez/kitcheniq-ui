@@ -89,7 +89,7 @@ interface PurchaseOrderDTO {
 
 const AUTH_TOKEN_KEY = 'authToken';
 // REMOVED INVENTORY_LIST_ENDPOINT (ya no se usa para el modal de orden de compra)
-const ADMIN_BASE = 'http://localhost:5000/kitcheniq/api/v1/admin';
+const ADMIN_BASE = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin';
 const SUPPLIER_LIST_ENDPOINT = `${ADMIN_BASE}/supplier-list`;
 const SUPPLIER_ITEMS_ENDPOINT = `${ADMIN_BASE}/supplier-inventory-items`;
 

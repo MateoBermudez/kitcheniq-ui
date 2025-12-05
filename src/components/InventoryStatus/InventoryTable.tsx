@@ -34,8 +34,8 @@ interface RawProduct {
     supplier?: string;
 }
 
-const INVENTORY_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/inventory-list';
-const CREATE_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/add-inventory-item'; // updated
+const INVENTORY_LIST_ENDPOINT = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin/inventory-list';
+const CREATE_ENDPOINT = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin/add-inventory-item'; // updated
 const TOKEN_KEY = 'authToken';
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ searchTerm, onToast }) => {

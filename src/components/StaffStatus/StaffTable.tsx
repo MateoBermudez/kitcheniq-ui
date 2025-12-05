@@ -39,7 +39,7 @@ interface RawEmployee {
 
 const TOKEN_KEY = 'authToken';
 // Asunción de endpoint — si cambia, actualizar aquí
-const STAFF_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/employees-list';
+const STAFF_LIST_ENDPOINT = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin/employees-list';
 
 const LIGHT_STATUS_COLORS: Record<EmployeeStatus, string> = {
     'On Shift': '#75c39b',      // versión más clara del verde
@@ -458,7 +458,7 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
         if (!employeeToDelete || !canConfirmDelete) return;
         try {
             setDeleting(true);
-            const response = await fetch(`http://localhost:5000/kitcheniq/api/v1/admin/delete-employee?employeeId=${employeeToDelete.id}`, {
+            const response = await fetch(`https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin/delete-employee?employeeId=${employeeToDelete.id}`, {
                 method: 'POST',
                 headers: authHeaders()
             });

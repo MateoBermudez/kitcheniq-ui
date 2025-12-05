@@ -22,7 +22,7 @@ interface InventorySearchProps {
 }
 
 // Supplier list endpoint (same as InventoryStatus)
-const SUPPLIER_LIST_ENDPOINT = 'http://localhost:5000/kitcheniq/api/v1/admin/supplier-list';
+const SUPPLIER_LIST_ENDPOINT = 'https://kitcheniq-api.onrender.com/kitcheniq/api/v1/admin/supplier-list';
 
 interface SupplierOption {
     id: string;
