@@ -62,17 +62,22 @@ const SupplierStatus: React.FC<SupplierStatusProps> = ({ onToast }) => {
             }
             const response = await getAllSupplierItems(String(candidateId));
             let data: unknown = response;
-            if (response && typeof response === 'object' && 'data' in (response as Record<string, unknown>)) {
-                const r = response as { data?: unknown };
-                data = r.data ?? response;
+            // Axios response guard without casting to Record directly
+            const hasData = (val: unknown): val is { data?: unknown } => {
+                return typeof val === 'object' && val !== null && 'data' in (val as Record<string, unknown>);
+            };
+            if (hasData(response)) {
+                data = response.data ?? response;
             }
             let orders: SupplierOrder[] = [];
             if (Array.isArray(data)) {
                 orders = data;
-            } else if (data.data && Array.isArray(data.data)) {
-                orders = data.data;
-            } else if (data.items && Array.isArray(data.items)) {
-                orders = data.items;
+            } else if (typeof data === 'object' && data !== null && 'data' in (data as Record<string, unknown>)) {
+                const obj = data as { data?: unknown };
+                if (Array.isArray(obj.data)) orders = obj.data as SupplierOrder[];
+            } else if (typeof data === 'object' && data !== null && 'items' in (data as Record<string, unknown>)) {
+                const obj = data as { items?: unknown };
+                if (Array.isArray(obj.items)) orders = obj.items as SupplierOrder[];
             }
             setSupplierOrders(orders);
         } catch (err) {

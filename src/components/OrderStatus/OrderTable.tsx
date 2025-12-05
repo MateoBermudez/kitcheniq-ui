@@ -335,7 +335,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ searchTerm, onToast }) => {
             }
             let backendReported: string = backendStatus;
             if (data && typeof data === 'object') {
-                const d = data as Record<string, unknown>;
+                const d = (data as unknown) as Record<string, unknown>;
                 const s1 = d['status'];
                 const s2 = d['orderStatus'];
                 backendReported = typeof s1 === 'string' ? s1 : (typeof s2 === 'string' ? s2 : backendStatus);

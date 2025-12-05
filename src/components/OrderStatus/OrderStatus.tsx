@@ -41,7 +41,7 @@ const comboComponents: Record<number, { productId: number; quantity: number }[]>
 
 declare global {
     interface Window {
-        updateOrderTable?: (payload: { data: { id: number }, requestTime: string, tableNumber: string }) => void;
+        updateOrderTable?: (newOrder: { data?: { id?: number | string }, requestTime?: string, tableNumber?: string | number }) => void;
     }
 }
 
@@ -316,4 +316,3 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ onToast }) => {
 };
 
 export default OrderStatus;
-

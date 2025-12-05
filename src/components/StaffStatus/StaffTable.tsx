@@ -321,6 +321,18 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     }, [totalPages, page]);
 
     useEffect(() => {
+        let mounted = true;
+        // Sincronizar con cambios externos en el listado de empleados
+        const staffUpdatedHandler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { employees?: Employee[] } | undefined;
+            if (!detail || !detail.employees) return;
+            mounted && setEmployees(detail.employees);
+        };
+        window.addEventListener('staff-updated', staffUpdatedHandler as EventListener);
+        return () => { mounted = false; window.removeEventListener('staff-updated', staffUpdatedHandler as EventListener); };
+    }, []);
+
+    useEffect(() => {
         // Al cambiar el término de búsqueda, regresar a la página 1
         setPage(1);
     }, [searchTerm]);
@@ -385,23 +397,23 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     };
 
     const toggleStatus = (empId: string) => {
-        setEmployees(prev => {
-            const updated = prev.map(emp => {
-                if (emp.id !== empId) return emp;
-                const ns = nextStatus(emp.status);
-                return { ...emp, status: ns };
-            });
-            try {
-                const map = loadStatusMap();
-                const changed = updated.find(e => e.id === empId);
-                if (changed) {
-                    map[empId] = changed.status;
-                    saveStatusMap(map);
-                }
-            } catch { /* ignore */ }
-            try { window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } })); } catch { /* noop */ }
-            return updated;
-        });
+        setEmployees((prev: Employee[]): Employee[] => {
+             const updated: Employee[] = prev.map(emp => {
+                 if (emp.id !== empId) return emp;
+                 const ns: EmployeeStatus = nextStatus(emp.status);
+                 return { ...emp, status: ns };
+             });
+             try {
+                 const map = loadStatusMap();
+                 const changed = updated.find(e => e.id === empId);
+                 if (changed) {
+                    map[empId] = changed.status as EmployeeStatus;
+                     saveStatusMap(map);
+                 }
+             } catch { /* ignore */ }
+             try { window.dispatchEvent(new CustomEvent('staff-updated', { detail: { employees: updated } })); } catch { /* noop */ }
+             return updated;
+         });
     };
 
     const statusButton = (emp: Employee) => {
@@ -495,16 +507,16 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                 onToast?.('Invalid shift change', 'warning');
                 return;
             }
-            setEmployees(prev => {
+            setEmployees((prev: Employee[]): Employee[] => {
                 let changed = false;
-                const updated = prev.map(emp => {
+                const updated: Employee[] = prev.map(emp => {
                     if (emp.id === fromId && emp.status !== 'Shift Ended') {
                         changed = true;
-                        return { ...emp, status: 'Shift Ended' };
+                        return { ...emp, status: 'Shift Ended' as EmployeeStatus };
                     }
                     if (emp.id === toId && emp.status !== 'On Shift') {
                         changed = true;
-                        return { ...emp, status: 'On Shift' };
+                        return { ...emp, status: 'On Shift' as EmployeeStatus };
                     }
                     return emp;
                 });
@@ -558,7 +570,9 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
     };
 
     const onEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
+        const target = e.target as HTMLInputElement | HTMLSelectElement;
+        const name = target.name as 'name' | 'lastName' | 'position' | 'hourlyRate';
+        const value = target.value;
         setEditForm(prev => ({ ...prev, [name]: value }));
     };
 
@@ -795,23 +809,44 @@ const StaffTable: React.FC<StaffTableProps> = ({ searchTerm, onToast }) => {
                             <Form>
                                 <Form.Group className="mb-3" controlId="editName">
                                     <Form.Label>Name(s)</Form.Label>
-                                    <Form.Control type="text" name="name" value={editForm.name} onChange={onEditInputChange} />
+                                    <Form.Control
+                                        type="text"
+                                        name="name"
+                                        value={editForm.name}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onEditInputChange(e)}
+                                    />
                                 </Form.Group>
                                 <Form.Group className="mb-3" controlId="editLastName">
                                     <Form.Label>Last Name(s)</Form.Label>
-                                    <Form.Control type="text" name="lastName" value={editForm.lastName} onChange={onEditInputChange} />
+                                    <Form.Control
+                                        type="text"
+                                        name="lastName"
+                                        value={editForm.lastName}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onEditInputChange(e)}
+                                    />
                                 </Form.Group>
                                 <Form.Group className="mb-3" controlId="editPosition">
                                     <Form.Label>Position</Form.Label>
-                                    <Form.Select name="position" value={editForm.position} onChange={onEditInputChange}>
-                                        <option value="Admin">Admin</option>
-                                        <option value="Chef">Chef</option>
-                                        <option value="Waiter">Waiter</option>
-                                    </Form.Select>
-                                </Form.Group>
+                                    <Form.Select
+                                        name="position"
+                                        value={editForm.position}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onEditInputChange(e)}
+                                    >
+                                         <option value="Admin">Admin</option>
+                                         <option value="Chef">Chef</option>
+                                         <option value="Waiter">Waiter</option>
+                                     </Form.Select>
+                                 </Form.Group>
                                 <Form.Group className="mb-3" controlId="editHourlyRate">
                                     <Form.Label>Hourly Rate</Form.Label>
-                                    <Form.Control type="number" name="hourlyRate" value={editForm.hourlyRate} onChange={onEditInputChange} min={0.01} step={0.01} />
+                                    <Form.Control
+                                        type="number"
+                                        name="hourlyRate"
+                                        value={editForm.hourlyRate}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onEditInputChange(e)}
+                                        min={0.01}
+                                        step={0.01}
+                                    />
                                 </Form.Group>
                                 <div className="small text-muted">ID Number and Contract Date cannot be edited.</div>
                             </Form>
